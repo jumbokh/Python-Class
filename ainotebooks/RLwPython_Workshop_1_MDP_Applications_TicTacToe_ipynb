@@ -1,0 +1,944 @@
+{
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/jumbokh/Python-Class/blob/master/ainotebooks/RLwPython_Workshop_1_MDP_Applications_TicTacToe_ipynb\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "9TbggGi-xtIT"
+      },
+      "source": [
+        "------------------------\n",
+        "# [RLwPython Workshop 1] - MDP Applications : Tic-Tac-Toe \n",
+        "_C. Alex Hu, PhD_                     \n",
+        "_2022/12/23 @ bigDataSpark Forum_\n",
+        "\n",
+        "**[ Reference ]**\n",
+        "\n",
+        "1. Richard S. Sutton and Andrew G. Barto, **`Reinforcement Learning: An Introduction`**, **Chapter 1**, MIT Press, 2018.\n",
+        "https://www.andrew.cmu.edu/course/10-703/textbook/BartoSutton.pdf\n",
+        "\n",
+        "\n",
+        "2. Jeremy Zhang, **Reinforcement Learning — Implement TicTacToe**, Towards Data Science, 2019/05/19. (https://towardsdatascience.com/reinforcement-learning-implement-tictactoe-189582bea542)\n",
+        "   +  **[All `RL Codes`]:** - https://github.com/MJeremy2017/reinforcement-learning-implementation\n",
+        ">\n",
+        ">    + **[Code]: `tic-tac-toe.ipynb`** - https://github.com/MJeremy2017/reinforcement-learning-implementation/blob/master/TicTacToe/tic-tac-toe.ipynb\n",
+        ">\n",
+        ">    + **[Code]: `ticTacToe.py`** - https://github.com/MJeremy2017/reinforcement-learning-implementation/blob/master/TicTacToe/ticTacToe.py\n",
+        "\n",
+        "\n",
+        "3. MIT - 6.825 Techniques in Artificial Intelligence: **`Lecture 20: Markov Decision Processes`**\n",
+        "https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-825-techniques-in-artificial-intelligence-sma-5504-fall-2002/lecture-notes/Lecture20FinalPart1.pdf\n",
+        "-----------------------"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "t01k3ecxxtIY"
+      },
+      "source": [
+        "## Content\n",
+        "\n",
+        "- [1. TicTacToe - an Adversarial Game](#TicTacToe)\n",
+        "    \n",
+        "    \n",
+        "- [2. Solving TicTacToe by Reinforcement-Learning](#learning_approach)\n",
+        "     - [2.1 A Model-based Learning - `Dynamic Programming`](#model-based_learning)\n",
+        "     - [2.2 A Model-free Learning - `A Value-function Method`](#model-free_learning)\n",
+        "     \n",
+        "     \n",
+        "- [3. RL Implementation for Playing Tic-Tac-Toe](#RL_for_TicTacToe)\n",
+        "     - [3.1 Self-Learning by 2 Agents](#Self-Learning)\n",
+        "     - [3.2 Agent Playing with Human](#Playing_with_Human)"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "GIA4tQyqxtIY"
+      },
+      "source": [
+        "<a id='TicTacToe'></a>\n",
+        "# 1. TicTacToe - an Adversarial Game [Ref. 1]\n",
+        "\n",
+        "\n",
+        "+ Two players take turns playing on a three-by-three board.\n",
+        "\n",
+        "<img src='./figures/TicTacToe.png' width='125' /> \n",
+        "\n",
+        "> **[ Rules ]:**\n",
+        "> + One player plays Xs and the other Os until one player **wins** by placing three marks in a row, horizontally, vertically, or diagonally. \n",
+        ">\n",
+        ">\n",
+        "> + If the board fills up with neither player getting three in a row, the\n",
+        "game is a **draw**.\n",
+        "\n",
+        "+ It can be solved by classical techniques, such as **MiniMax** algorithm from game theory.\n",
+        "\n",
+        "> **[ Problem ]:**\n",
+        "> +  A minimax player would never reach a game state from which it could lose, even if in fact it always won from that state because of incorrect play by the opponent.\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "XbPVzYp3xtIZ"
+      },
+      "source": [
+        "<a id='learning_approach'></a>\n",
+        "# 2. Solving TicTacToe by Reinforcement Learning"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "K-R_SELkxtIa"
+      },
+      "source": [
+        "> _**Q: How might we construct a player that will find the imperfections in its opponent’s play and `learn to maximize its chances of winning`?**_ \n",
+        "\n",
+        "> **Tic-tac-toe has a relatively small, finite state set, whereas reinforcement learning can be used.**\n",
+        "\n",
+        "\n",
+        "Source: [Sutton & Barto](http://incompleteideas.net/book/bookdraft2017nov5.pdf)\n",
+        "\n",
+        "+ ### Markov Decision Process (MDP)\n",
+        "![sutton barto rl](https://www.gocoder.one/static/RL-diagram-b3654cd3d5cc0e07a61a214977038f01.png \"Reinforcement Learning diagram\") \n",
+        "\n",
+        "\n",
+        "> + $S$ : **states**\n",
+        ">\n",
+        "> + $A$ : **actions**\n",
+        ">\n",
+        "> + $Pr(s_{t+1} | s_t, a_t)$ : **transition probabilities** with `Markov property`\n",
+        ">\n",
+        "> + $R(s)$ : **real-valued reward**\n",
+        ">\n",
+        ">\n",
+        "> $\\Rightarrow$ Find a **policy** for the **`Agent`**: $Π: S → A$\n",
+        "\n",
+        "> **[Ref. 3]: MIT - 6.825 Techniques in Artificial Intelligence: [`Lecture 20: Markov Decision Processes`](https://ocw.mit.edu/courses/electrical-engineering-and-computer-science/6-825-techniques-in-artificial-intelligence-sma-5504-fall-2002/lecture-notes/Lecture20FinalPart1.pdf)**"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ww0bAr7ixtIa"
+      },
+      "source": [
+        "<a id='model-based_learning'></a>\n",
+        "## 2.1. A Model-based Learning - `Dynamic Programming`\n",
+        "\n",
+        "> **< Reference >**\n",
+        "> 1. Wikipedia - **Dynamic programming** https://en.wikipedia.org/wiki/Dynamic_programming\n",
+        "> \n",
+        ">\n",
+        "> 2. **[Ref.1]: `Ch.4 Dynamic Programming`**\n",
+        "\n",
+        "-------\n",
+        "+ Classical optimization methods for sequential decision problems, such\n",
+        "as **`dynamic programming`**, can compute an optimal solution for any opponent, but require as input a complete specification of that opponent, including the probabilities with which the opponent makes each move in each board state. \n",
+        "\n",
+        "\n",
+        "+  _Such information can be estimated from experience, in this case by playing many games against the opponent._ \n",
+        "\n",
+        "\n",
+        "+ About the best one can do on this problem is first to **learn a model of the opponent’s behavior, up to some level of confidence**, and then **apply `dynamic programming` to compute an optimal solution given the approximate opponent model.**\n",
+        "\n",
+        "  _Quoted from **Sec. `1.5 An Extended Example: Tic-Tac-Toe`**_ in Source: [Sutton & Barto](http://incompleteideas.net/book/bookdraft2017nov5.pdf)\n",
+        "\n",
+        "--------"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "szTzUOSHxtIb"
+      },
+      "source": [
+        "<a id='model-free_learning'></a>\n",
+        "## 2.2 A Model-free Learning - `A Value-functon Method`\n",
+        "> **Reference : [Ref.1 - `Ch.1 ~ Ch.3`]**\n",
+        "\n",
+        "---------------------------------------------------------\n",
+        "1. **First, we set up a table of numbers, one for each possible state of the game.** \n",
+        "\n",
+        "\n",
+        "2. **Each number will be the latest estimate of the probability of our winning from that state.** \n",
+        "\n",
+        "\n",
+        "3. **We treat this estimate as the state’s value, and `the whole table is the learned value function`.** \n",
+        "\n",
+        ">    + State A has higher value than state B, or is considered “better” than state B, if the current estimate of the probability of our winning from A is higher than it is from B. \n",
+        "    \n",
+        ">    + Assuming we always play `X`s, then for all states with three `X`s in a row the probability of winning is `1`, because we have already won.\n",
+        "    \n",
+        ">    + Similarly, for all states with three `O`s in a row, or that are “filled up,” the correct probability is `0`, as we cannot win from them. \n",
+        "    \n",
+        ">    + _We set the initial values of all the other states to 0.5, representing a guess that we have a 50% chance of winning._\n",
+        "    \n",
+        "    \n",
+        "4. **We play many games against the opponent.** \n",
+        "\n",
+        ">    + To select our moves we examine the states that would result from each of our possible moves (one for each blank space on the board) and look up their current values in the table. \n",
+        "\n",
+        ">    + **Most of the time we move greedily**, selecting the move that leads to the state with greatest value, that is, with the highest estimated probability of winning. \n",
+        "\n",
+        ">    + **Occasionally, however, we select randomly from among the other moves instead. These are called _`exploratory`_ moves because they cause us to experience states that we might otherwise never see.** "
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "a2VK6wRDxtIc"
+      },
+      "source": [
+        "<img src='./figures/A_sequence_of_TicTacToe_moves.png' width='450' />\n",
+        "\n",
+        "                    Fig.1 A sequence of Tic-Tac-Toe moves\n",
+        "\n",
+        "Source: [Sutton & Barto](http://incompleteideas.net/book/bookdraft2017nov5.pdf)\n",
+        "\n",
+        "5. **While we are playing, we change the values of the states in which we find ourselves during the game.** \n",
+        "\n",
+        ">    + We attempt to make them more accurate estimates of the probabilities of winning. \n",
+        "\n",
+        ">    + To do this, we “back up” the value of the state after each greedy move to the state before the move, as suggested by the arrows in Figure 1.1. \n",
+        "\n",
+        "6. **More precisely, the current value of the earlier state is updated to be closer to the value of the later state.** \n",
+        "\n",
+        ">   If we let $s$ denote the state before the greedy move, and $s'$ the state after the move, then the update to the estimated value of $s$, denoted $V(s)$, can be written as\n",
+        "\n",
+        "$$ V(s)\\leftarrow V(s)+\\alpha [V(s') - V(s)] $$\n",
+        " \n",
+        ">    where $\\alpha$ is a small positive fraction called the `step-size parameter`, which influences the `rate of learning`. \n",
+        "\n",
+        "-----------------------------------------------\n",
+        "**[ NOTE ]: The method described above performs quite well on solving the Tic-Tac-Toe problem.**\n",
+        "\n",
+        "> + If the `step-size parameter` $\\alpha$ is reduced properly over time, then this method converges, for any fixed opponent, to the true probabilities of winning from each state given optimal play by our player.\n",
+        "\n",
+        "> + Furthermore, the moves then taken (except on exploratory moves) are in fact the optimal moves against this (imperfect) opponent.\n",
+        "\n",
+        "> + In other words, **the method converges to an optimal policy for playing the game against this opponent.** "
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "s5kO-O_0xtIc"
+      },
+      "source": [
+        "<a id='RL_for_TicTacToe'></a>\n",
+        "# 3. RL Implementation for Playing Tic-Tac-Toe\n",
+        "\n",
+        "> **[NOTE] - The following Python code snippet is adopted and modified from [Ref. 2] :** \n",
+        ">\n",
+        "> **Jeremy Zhang, `Reinforcement Learning — Implement TicTacToe`**, Towards Data Science, 2019/05/19. (https://towardsdatascience.com/reinforcement-learning-implement-tictactoe-189582bea542)\n",
+        ">   +  **[All `RL Codes`]:** - https://github.com/MJeremy2017/reinforcement-learning-implementation\n",
+        ">\n",
+        ">    + **[Code]: `tic-tac-toe.ipynb`** - https://github.com/MJeremy2017/reinforcement-learning-implementation/blob/master/TicTacToe/tic-tac-toe.ipynb\n",
+        ">\n",
+        ">    + **[Code]: `ticTacToe.py`** - https://github.com/MJeremy2017/reinforcement-learning-implementation/blob/master/TicTacToe/ticTacToe.py**\n",
+        "\n",
+        "-----------------------------------------\n",
+        "+ **< PART 1 >: `Self-Learning`**\n",
+        "    - **Train 2 agents to play against each other, and save their policy.**\n",
+        "\n",
+        "\n",
+        "+ **< PART 2 >: `Playing with Human`**\n",
+        "    - **Load the policy, and make the agent to play against human.**\n",
+        "    \n",
+        "-----------------------------------------"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "kyxHsWSixtId"
+      },
+      "source": [
+        "<a id='Self-Learning'></a>\n",
+        "## 3.1. Self-Learning by 2 Agents\n",
+        "\n",
+        "+ **`State` class**\n",
+        "+ **`Player` class**"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 11,
+      "metadata": {
+        "id": "p2zdJjDfxtId"
+      },
+      "outputs": [],
+      "source": [
+        "import numpy as np\n",
+        "import pickle      # for saving the policy results\n",
+        "\n",
+        "# Tic-Tac-Toe board size\n",
+        "BOARD_ROWS = 3\n",
+        "BOARD_COLS = 3"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "lZzNRJG6xtIf"
+      },
+      "source": [
+        "+ ### Inside `State` class"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 12,
+      "metadata": {
+        "id": "BbaUH1zBxtIf"
+      },
+      "outputs": [],
+      "source": [
+        "class State:\n",
+        "    def __init__(self, p1, p2):  # p1 & p2 : 2 objects of Player class\n",
+        "        self.board = np.zeros((BOARD_ROWS, BOARD_COLS)) # An empty board\n",
+        "        self.p1 = p1  # Player 1\n",
+        "        self.p2 = p2  # Player 2\n",
+        "        self.isEnd = False\n",
+        "        self.boardHash = None\n",
+        "        # init p1 plays first\n",
+        "        self.playerSymbol = 1  # Player 1 => +1\n",
+        "\n",
+        "    # -----------------------------------------------------------\n",
+        "    # To get unique hash of current board state\n",
+        "    #  - The getHash() function hashes the current board state \n",
+        "    #    so that it can be stored in the state-value dictionary.\n",
+        "    # -----------------------------------------------------------\n",
+        "    def getHash(self):\n",
+        "        self.boardHash = str(self.board.reshape(BOARD_COLS * BOARD_ROWS))\n",
+        "        # print('self.boardHash = ', self.boardHash)\n",
+        "        return self.boardHash\n",
+        "\n",
+        "    # -----------------------------------------------------------\n",
+        "    # Check Winner\n",
+        "    #  - After each action being taken by the player, \n",
+        "    #    we need a function to continuously check if the game \n",
+        "    #    has ended and if end, to judge the winner of the game \n",
+        "    #    and give reward to both players.\n",
+        "    # -----------------------------------------------------------\n",
+        "    def winner(self):\n",
+        "        # row\n",
+        "        for i in range(BOARD_ROWS):\n",
+        "            if sum(self.board[i, :]) == 3:\n",
+        "                self.isEnd = True\n",
+        "                return 1    # Player 1 wins the game.\n",
+        "            if sum(self.board[i, :]) == -3:\n",
+        "                self.isEnd = True\n",
+        "                return -1   # Player 1 loses the game.\n",
+        "        # col\n",
+        "        for i in range(BOARD_COLS):\n",
+        "            if sum(self.board[:, i]) == 3:\n",
+        "                self.isEnd = True\n",
+        "                return 1\n",
+        "            if sum(self.board[:, i]) == -3:\n",
+        "                self.isEnd = True\n",
+        "                return -1\n",
+        "        # diagonal\n",
+        "        diag_sum1 = sum([self.board[i, i] for i in range(BOARD_COLS)])\n",
+        "        diag_sum2 = sum([self.board[i, BOARD_COLS - i - 1] for i in range(BOARD_COLS)])\n",
+        "        diag_sum = max(abs(diag_sum1), abs(diag_sum2))\n",
+        "        if diag_sum == 3:\n",
+        "            self.isEnd = True\n",
+        "            if diag_sum1 == 3 or diag_sum2 == 3:\n",
+        "                return 1\n",
+        "            else:\n",
+        "                return -1\n",
+        "\n",
+        "        # tie\n",
+        "        # no available positions\n",
+        "        if len(self.availablePositions()) == 0:\n",
+        "            self.isEnd = True\n",
+        "            return 0    # A Tie game for both players.\n",
+        "        # not end\n",
+        "        self.isEnd = False\n",
+        "        return None\n",
+        "\n",
+        "    def availablePositions(self):\n",
+        "        positions = []\n",
+        "        for i in range(BOARD_ROWS):\n",
+        "            for j in range(BOARD_COLS):\n",
+        "                if self.board[i, j] == 0:\n",
+        "                    positions.append((i, j))  # need to be tuple\n",
+        "        return positions\n",
+        "\n",
+        "    def updateState(self, position):\n",
+        "        self.board[position] = self.playerSymbol\n",
+        "        # switch to another player : Player 2 => -1\n",
+        "        self.playerSymbol = -1 if self.playerSymbol == 1 else 1\n",
+        "\n",
+        "    # only when game ends :\n",
+        "    #  -  At the end of game, 1 is rewarded to winner \n",
+        "    #     and 0 to loser. \n",
+        "    #     A draw is also a bad end, so giving \n",
+        "    #     agent p1 0.1 reward and p2 0.5.\n",
+        "    def giveReward(self):\n",
+        "        result = self.winner()\n",
+        "        # backpropagate reward\n",
+        "        if result == 1:      # Player 1 wins the game.\n",
+        "            self.p1.feedReward(1)\n",
+        "            self.p2.feedReward(0)\n",
+        "        elif result == -1:   # Player 1 loses the game.\n",
+        "            self.p1.feedReward(0)\n",
+        "            self.p2.feedReward(1)\n",
+        "        else:                # A tie game.\n",
+        "            self.p1.feedReward(0.1)\n",
+        "            self.p2.feedReward(0.5)\n",
+        "\n",
+        "    # board reset\n",
+        "    def reset(self):\n",
+        "        self.board = np.zeros((BOARD_ROWS, BOARD_COLS))\n",
+        "        self.boardHash = None\n",
+        "        self.isEnd = False\n",
+        "        self.playerSymbol = 1\n",
+        "\n",
+        "    # ----------------------------------------------------\n",
+        "    # Self-Playing for Learning\n",
+        "    # ----------------------------------------------------\n",
+        "    def play(self, rounds=100):\n",
+        "        for i in range(rounds):\n",
+        "            if i == 0:\n",
+        "                print(\"Rounds :\", end=' ') \n",
+        "            elif (i+1) % 1000 == 0:\n",
+        "                print(i+1, end=' ')\n",
+        "                \n",
+        "            while not self.isEnd:\n",
+        "                # Player 1 => Policy: S -> A\n",
+        "                positions = self.availablePositions()\n",
+        "                p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)\n",
+        "                # take action and upate board state\n",
+        "                self.updateState(p1_action)\n",
+        "                board_hash = self.getHash()\n",
+        "                if i == 0:      # print self.boardHash\n",
+        "                    print('self.boardHash for 1st game = {}'.format(board_hash))\n",
+        "                self.p1.addState(board_hash)\n",
+        "                # check board status if it is end\n",
+        "\n",
+        "                win = self.winner()\n",
+        "                if win is not None:\n",
+        "                    # self.showBoard()\n",
+        "                    # ended with p1 either win or draw\n",
+        "                    if i == 0:      # print self.boardHash\n",
+        "                        print('>>> The winner in the 1st game is Player1.\\n')\n",
+        "                    self.giveReward()\n",
+        "                    self.p1.reset()\n",
+        "                    self.p2.reset()\n",
+        "                    self.reset()\n",
+        "                    break\n",
+        "\n",
+        "                else:\n",
+        "                    # Player 2 => Policy: S -> A\n",
+        "                    positions = self.availablePositions()\n",
+        "                    p2_action = self.p2.chooseAction(positions, self.board, self.playerSymbol)\n",
+        "                    self.updateState(p2_action)\n",
+        "                    board_hash = self.getHash()\n",
+        "                    self.p2.addState(board_hash)\n",
+        "\n",
+        "                    win = self.winner()\n",
+        "                    if win is not None:\n",
+        "                        # self.showBoard()\n",
+        "                        # ended with p2 either win or draw\n",
+        "                        if i == 0:      # print self.boardHash\n",
+        "                            print('>>> The winner in the 1st game is Player2.\\n')\n",
+        "                        self.giveReward()\n",
+        "                        self.p1.reset()\n",
+        "                        self.p2.reset()\n",
+        "                        self.reset()\n",
+        "                        break\n",
+        "\n",
+        "    # ----------------------------------------------------\n",
+        "    # play with human\n",
+        "    # ----------------------------------------------------\n",
+        "    def play2(self):\n",
+        "        while not self.isEnd:\n",
+        "            # Player 1\n",
+        "            positions = self.availablePositions()\n",
+        "            p1_action = self.p1.chooseAction(positions, self.board, self.playerSymbol)\n",
+        "            # take action and upate board state\n",
+        "            self.updateState(p1_action)\n",
+        "            self.showBoard()\n",
+        "            # check board status if it is end\n",
+        "            win = self.winner()\n",
+        "            if win is not None:\n",
+        "                if win == 1:\n",
+        "                    print(self.p1.name, \"wins!\")\n",
+        "                else:\n",
+        "                    print(\"tie!\")\n",
+        "                self.reset()\n",
+        "                break\n",
+        "\n",
+        "            else:\n",
+        "                # Player 2\n",
+        "                positions = self.availablePositions()\n",
+        "                p2_action = self.p2.chooseAction(positions)\n",
+        "\n",
+        "                self.updateState(p2_action)\n",
+        "                self.showBoard()\n",
+        "                win = self.winner()\n",
+        "                if win is not None:\n",
+        "                    if win == -1:\n",
+        "                        print(self.p2.name, \"wins!\")\n",
+        "                    else:\n",
+        "                        print(\"tie!\")\n",
+        "                    self.reset()\n",
+        "                    break\n",
+        "\n",
+        "    def showBoard(self):\n",
+        "        # p1: x  p2: o\n",
+        "        for i in range(0, BOARD_ROWS):\n",
+        "            print('-------------')\n",
+        "            out = '| '\n",
+        "            for j in range(0, BOARD_COLS):\n",
+        "                if self.board[i, j] == 1:\n",
+        "                    token = 'x'\n",
+        "                if self.board[i, j] == -1:\n",
+        "                    token = 'o'\n",
+        "                if self.board[i, j] == 0:\n",
+        "                    token = ' '\n",
+        "                out += token + ' | '\n",
+        "            print(out)\n",
+        "        print('-------------')"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "_oL5F9coxtIg"
+      },
+      "source": [
+        "+ ### Inside `Player` class\n",
+        "\n",
+        "> A **`Player`** class which represents our **agent**, and the player is able to:\n",
+        "> + Choose actions based on current estimation of the states\n",
+        ">\n",
+        ">\n",
+        "> + Record all the states of the game\n",
+        ">\n",
+        ">\n",
+        "> + Update states-value estimation after each game\n",
+        ">\n",
+        ">\n",
+        "> + Save and load the policy"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "ImcTga1QxtIg"
+      },
+      "source": [
+        "1. **Exploration vs Exploitation Trade-off - `ϵ-greedy` method**\n",
+        "\n",
+        "> As our agent learns more about the environment, we can let it use this knowledge to take more optimal actions and converge faster - known as **exploitation**.\n",
+        "\n",
+        "> **In `choosingAction()`, we use `ϵ-greedy` method to balance between exploration and exploitation**, as following: \n",
+        "\n",
+        "$$ Action \\leftarrow argmax_a V(s) \\quad \\quad with \\ probability : \\ 1-\\epsilon \\quad (Exploitation) $$\n",
+        "$$  \\quad \\quad     \\leftarrow a \\ random \\ action \\quad with \\ probability : \\epsilon \\quad \\quad(Exploration)$$\n",
+        "\n",
+        "> + Here we set `exp_rate=0.3` , which means `ϵ`= 0.3.\n",
+        ">\n",
+        ">    + So 70% of the time our agent will take greedy action, which is choosing action based on current estimation of states-value,\n",
+        ">\n",
+        ">    + and 30% of the time our agent will take random action.\n"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "Bxj5oATaxtIg"
+      },
+      "source": [
+        "2. **State-Value update**\n",
+        "\n",
+        "> To update value estimation of states, we will apply value iteration which is updated based on the formula below:\n",
+        "\n",
+        "$$ V(s)\\leftarrow V(s)+\\alpha [V(s') - V(s)] $$\n",
+        " \n",
+        ">    where $\\alpha$ is a small positive fraction called the `step-size parameter`, which influences the `rate of learning`.\n",
+        "\n",
+        "> + **The value function of a state $s$ under a policy $ \\pi $, _the state-value function for policy $ \\pi $_ :** [Ref. 1 : Eq(3.12) from [Sutton & Barto](http://incompleteideas.net/book/bookdraft2017nov5.pdf)]\n",
+        "\n",
+        "<img src='./figures/state-value_function.png' width='500' />"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 13,
+      "metadata": {
+        "id": "4EcYv1Z4xtIh"
+      },
+      "outputs": [],
+      "source": [
+        "class Player:\n",
+        "    def __init__(self, name, exp_rate=0.3):\n",
+        "        self.name = name\n",
+        "        self.states = []  # record all positions taken\n",
+        "        self.lr = 0.2\n",
+        "        self.exp_rate = exp_rate  # ϵ = 0.3\n",
+        "        self.decay_gamma = 0.9    # discount\n",
+        "        self.states_value = {}    # state, s -> value, V(s)\n",
+        "\n",
+        "    def getHash(self, board):\n",
+        "        boardHash = str(board.reshape(BOARD_COLS * BOARD_ROWS))\n",
+        "        return boardHash\n",
+        "\n",
+        "    def chooseAction(self, positions, current_board, symbol):\n",
+        "        if np.random.uniform(0, 1) <= self.exp_rate:       # ϵ-greedy \n",
+        "            # If TRUE, then take random action.\n",
+        "            idx = np.random.choice(len(positions))\n",
+        "            action = positions[idx]\n",
+        "        else:\n",
+        "            value_max = -999\n",
+        "            for p in positions:\n",
+        "                next_board = current_board.copy()\n",
+        "                next_board[p] = symbol\n",
+        "                next_boardHash = self.getHash(next_board)\n",
+        "                value = 0 if self.states_value.get(next_boardHash) is None else self.states_value.get(next_boardHash)\n",
+        "                # print(\"value\", value)\n",
+        "                if value >= value_max:\n",
+        "                    value_max = value\n",
+        "                    action = p\n",
+        "        # print(\"{} takes action {}\".format(self.name, action))\n",
+        "        return action\n",
+        "\n",
+        "    # append a hash state\n",
+        "    def addState(self, state):\n",
+        "        self.states.append(state)\n",
+        "\n",
+        "    # -----------------------------------------------------------\n",
+        "    #  At the end of game, backpropagate and update states value\n",
+        "    #   - The positions of each game is stored in self.states. \n",
+        "    #   - When the agent reach the end of the game, the estimates \n",
+        "    #     are updated in reversed fashion.\n",
+        "    # -----------------------------------------------------------\n",
+        "    def feedReward(self, reward):\n",
+        "        for st in reversed(self.states):  # updated in reversed fashion\n",
+        "            if self.states_value.get(st) is None:\n",
+        "                self.states_value[st] = 0\n",
+        "            # update states value <= [Ref. 1 : Eq(3.12)]\n",
+        "            self.states_value[st] += self.lr * (self.decay_gamma * reward - self.states_value[st])\n",
+        "            reward = self.states_value[st]\n",
+        "\n",
+        "    def reset(self):\n",
+        "        self.states = []\n",
+        "\n",
+        "    def savePolicy(self):\n",
+        "        fw = open('policy_' + str(self.name), 'wb')\n",
+        "        pickle.dump(self.states_value, fw)\n",
+        "        print('self.states_value : ', self.states_value)\n",
+        "        fw.close()\n",
+        "\n",
+        "    def loadPolicy(self, file):\n",
+        "        fr = open(file, 'rb')\n",
+        "        self.states_value = pickle.load(fr)\n",
+        "        fr.close()"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "RK4tqZemxtIh"
+      },
+      "source": [
+        "+ ### Training from Self-Learning - Calling **`play()`** function\n",
+        "\n",
+        "> During training, the process for each player is:\n",
+        ">\n",
+        ">\n",
+        "> + Look for available positions\n",
+        ">\n",
+        "> + Choose action\n",
+        ">\n",
+        "> + Update board state and add the action to player’s states\n",
+        ">\n",
+        "> + Judge if reach the end of the game and give reward accordingly"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 14,
+      "metadata": {
+        "id": "m0CXQ8MNxtIh",
+        "outputId": "ca20c77c-034e-4e64-d77f-97a4e9eeca57",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "Start training with 10000 Tic-Tac-Toe games...\n",
+            "\n",
+            "Rounds : self.boardHash for 1st game = [1. 0. 0. 0. 0. 0. 0. 0. 0.]\n",
+            "self.boardHash for 1st game = [ 1.  0.  1.  0.  0.  0.  0.  0. -1.]\n",
+            "self.boardHash for 1st game = [ 1.  0.  1.  0.  0.  0.  1. -1. -1.]\n",
+            "self.boardHash for 1st game = [ 1.  0.  1.  0.  1. -1.  1. -1. -1.]\n",
+            ">>> The winner in the 1st game is Player1.\n",
+            "\n",
+            "1000 2000 3000 4000 5000 6000 7000 8000 9000 10000 Done.\n"
+          ]
+        }
+      ],
+      "source": [
+        "# Initialize training...\n",
+        "p1 = Player(\"p1\")\n",
+        "p2 = Player(\"p2\")\n",
+        "games = 10000\n",
+        "\n",
+        "st = State(p1, p2)\n",
+        "print(\"Start training with {} Tic-Tac-Toe games...\\n\".format(games))\n",
+        "st.play(games)\n",
+        "print(\"Done.\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "WNtCMqTRxtIi"
+      },
+      "source": [
+        "+ ### Saving Policy from Player 1"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 15,
+      "metadata": {
+        "id": "6RqTXDz4xtIi",
+        "outputId": "176891bf-995c-46f6-f3ba-fd5e6051b07b",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "self.states_value :  {'[ 1.  0.  1.  0.  1. -1.  1. -1. -1.]': 0.8916989651668307, '[ 1.  0.  1.  0.  0.  0.  1. -1. -1.]': 0.3963385748841462, '[ 1.  0.  1.  0.  0.  0.  0.  0. -1.]': 0.13046623411939853, '[1. 0. 0. 0. 0. 0. 0. 0. 0.]': 0.19424724426221093, '[ 1. -1.  1.  1. -1.  1. -1.  1. -1.]': 0.08999999999989179, '[ 0.  0.  1.  1. -1.  1. -1.  1. -1.]': 0.014368964021098468, '[ 0.  0.  0.  1.  0.  1. -1.  1. -1.]': 0.15920011938240922, '[ 0.  0.  0.  1.  0.  0.  0.  1. -1.]': 0.10771607981080521, '[0. 0. 0. 0. 0. 0. 0. 1. 0.]': 0.18547860832461377, '[ 0.  0.  1.  1. -1. -1.  1. -1.  1.]': 0.004155555533492408, '[ 0.  0.  0.  1.  0. -1.  1. -1.  1.]': 0.03275919917232053, '[ 0.  0.  0.  0.  0.  0.  1. -1.  1.]': 0.03995076764160001, '[0. 0. 0. 0. 0. 0. 0. 0. 1.]': 0.161972702894377, '[ 1.  1.  1.  0.  0.  0.  0. -1. -1.]': 0.7792040448, '[ 1.  0.  0. -1. -1.  1. -1.  1.  1.]': 0.38739784096972807, '[ 1.  0.  0. -1. -1.  0.  0.  1.  1.]': 0.01399901329750923, '[ 1.  0.  0.  0. -1.  0.  0.  0.  1.]': 0.1203527460912157, '[ 1.  0.  1.  1. -1.  0.  1. -1. -1.]': 0.8916989651668307, '[ 1.  0.  1.  1. -1.  0.  0.  0. -1.]': 0.4552884723000307, '[ 1.  0.  1.  0. -1.  0.  0.  0.  0.]': 0.1017708142867562, '[ 0.  0.  1. -1. -1.  1.  1. -1.  1.]': 0.6640704000000001, '[ 0.  0.  0. -1.  0.  1.  1. -1.  1.]': 0.032400000000000005, '[ 1.  1. -1.  0. -1.  1.  0.  1. -1.]': 0.04245891005930176, '[ 1.  1.  0.  0. -1.  0.  0.  1. -1.]': 0.008570233642956938, '[ 1.  1.  0.  0. -1.  0.  0.  0.  0.]': 0.24540359278650947, '[ 1.  0. -1.  0.  1. -1.  1. -1.  1.]': 0.8797338016768327, '[ 1.  0. -1.  0.  0.  0.  1. -1.  1.]': 0.6420574403854441, '[ 1.  0. -1.  0.  0.  0.  0.  0.  1.]': 0.3531680879915764, '[ 1.  1. -1. -1. -1.  1.  1. -1.  1.]': 0.08999607994713307, '[ 1.  0. -1.  0. -1.  1.  1. -1.  1.]': 0.008424000000000001, '[ 1.  0. -1.  0. -1.  1.  0.  0.  1.]': 0.004801862476030281, '[ 1.  0.  0.  0. -1.  1.  0.  0.  0.]': 0.04579292115616682, '[ 1.  0.  0.  1. -1. -1.  1.  1. -1.]': 0.8991086831717146, '[ 1.  0.  0.  0. -1.  0.  1.  1. -1.]': 0.04188405319409486, '[ 1.  0.  0.  0. -1.  0.  1.  0.  0.]': 0.1718364128169737, '[ 1.  0.  1.  0. -1. -1.  1. -1.  1.]': 0.0, '[ 1.  0.  1.  0. -1. -1.  0.  0.  1.]': 0.012898120741609478, '[ 0.  0.  1. -1.  1. -1.  1.  1. -1.]': 0.6640704000000001, '[ 0.  0.  0.  0.  1. -1.  1.  1. -1.]': 0.053747712, '[ 0.  0.  0.  0.  0.  0.  1.  1. -1.]': 0.17082419797944456, '[0. 0. 0. 0. 0. 0. 1. 0. 0.]': 0.21053027508603359, '[ 1. -1.  1. -1.  1.  1. -1.  1. -1.]': 0.08999999999999998, '[ 0.  0.  1. -1.  1.  1. -1.  1. -1.]': 0.013950708350976, '[ 0.  0.  1.  0.  0.  1. -1.  1. -1.]': 0.020179384381440003, '[ 0.  0.  1.  0.  0.  1.  0.  0. -1.]': 0.01814266455780557, '[0. 0. 1. 0. 0. 0. 0. 0. 0.]': 0.15702584896406574, '[ 1.  0.  1.  1. -1.  1.  0. -1. -1.]': 0.0, '[ 1.  1.  1. -1. -1.  1. -1.  1. -1.]': 0.8999387491739542, '[ 1.  0.  1. -1.  0.  1. -1.  1. -1.]': 0.14644800000000002, '[ 1.  0.  0.  0.  0.  1. -1.  1. -1.]': 0.21673779904742518, '[ 1.  0.  0.  0.  0.  1. -1.  0.  0.]': 0.15710808420760028, '[ 1.  0.  0.  0.  0. -1.  1.  1. -1.]': 0.06928460787267243, '[ 1.  1.  1.  0. -1. -1.  0.  1. -1.]': 0.8746672520960409, '[ 1.  0.  1.  0. -1. -1.  0.  1.  0.]': 0.016038904860352043, '[ 1. -1.  0. -1.  0.  1.  1. -1.  1.]': 0.0, '[ 1. -1.  0.  0.  0.  0.  1. -1.  1.]': 0.0, '[ 1. -1.  0.  0.  0.  0.  0.  0.  1.]': 0.26421799889358033, '[ 0.  0.  1. -1.  1.  1. -1. -1.  1.]': 0.749005056, '[ 0.  0.  0.  0.  1.  1. -1. -1.  1.]': 0.4440287649318175, '[ 0.  0.  0.  0.  1.  0.  0. -1.  1.]': 0.2752404717283121, '[0. 0. 0. 0. 1. 0. 0. 0. 0.]': 0.2819444253715654, '[ 1.  0.  0.  1.  1. -1. -1.  1. -1.]': 0.0068734431167879586, '[ 1.  0.  0.  0.  1. -1.  0.  1. -1.]': 0.24117160046508107, '[ 1.  0.  0.  0.  1. -1.  0.  0.  0.]': 0.5832599928158344, '[ 1.  0.  0. -1.  1. -1.  1. -1.  1.]': 0.8946873377067716, '[ 1.  0.  0.  0.  0. -1.  1. -1.  1.]': 0.6305478934098819, '[ 1.  0.  0.  0.  0. -1.  0.  0.  1.]': 0.24465054163906658, '[ 1.  0.  0. -1.  1. -1. -1.  1.  1.]': 0.80336323584, '[ 1.  0.  0. -1.  0. -1.  0.  1.  1.]': 0.05780160000000001, '[ 1.  0.  0. -1.  0.  0.  0.  0.  1.]': 0.029204564571472427, '[ 1.  1.  1.  0. -1.  0. -1. -1.  1.]': 0.80336323584, '[ 1.  0.  1.  0. -1.  0. -1.  0.  1.]': 0.4106137001171968, '[0. 0. 0. 0. 0. 1. 0. 0. 0.]': 0.1750511755786588, '[ 1.  1. -1. -1. -1.  1.  1.  1. -1.]': 0.08999999751537131, '[ 1.  0.  0. -1. -1.  1.  1.  1. -1.]': 0.07087673832284079, '[ 1.  0.  0.  0. -1.  0.  0.  1.  0.]': 0.13217596911357388, '[ 1.  0.  1. -1. -1.  0.  1. -1.  1.]': 0.0, '[ 1.  0.  1. -1. -1.  0.  0.  0.  1.]': 0.13355493721704984, '[ 1.  0.  1.  0. -1. -1.  1.  1. -1.]': 0.1446053824512, '[ 1.  1.  1.  1. -1. -1. -1. -1.  1.]': 0.8999607994713307, '[ 1.  0.  1.  1. -1. -1.  0. -1.  1.]': 0.42162726473806955, '[ 1.  0.  1.  1. -1.  0.  0. -1.  0.]': 0.03498933738207104, '[ 0.  0.  0.  0.  1. -1. -1.  1.  1.]': 0.26588736, '[ 0.  0.  0.  0.  0.  0. -1.  1.  1.]': 0.015885434880000004, '[ 1.  0. -1.  1. -1.  1.  0.  1. -1.]': 0.0, '[ 1.  0. -1.  1. -1.  1.  0.  0.  0.]': 0.0, '[ 0.  0.  0.  0. -1.  1.  1.  1. -1.]': 0.009016736823982347, '[ 1.  0.  1. -1. -1.  1.  0.  1. -1.]': 0.2726589206266493, '[ 1.  0.  1. -1. -1.  1.  0.  0.  0.]': 0.3455562423553675, '[ 1. -1.  1. -1. -1.  1. -1.  1.  1.]': 0.85052197675008, '[ 1. -1.  1. -1. -1.  0.  0.  1.  1.]': 0.055220911141027486, '[ 1. -1.  1. -1. -1.  1.  1.  1. -1.]': 0.08999999999842519, '[-1.  1.  1.  0.  0. -1.  1.  1. -1.]': 0.0, '[-1.  1.  0.  0.  0.  0.  1.  1. -1.]': 0.005832000000000001, '[-1.  1.  0.  0.  0.  0.  1.  0.  0.]': 0.019887313310158417, '[ 1.  0. -1. -1. -1.  1.  0.  1.  1.]': 0.0, '[ 1.  0. -1.  0.  0.  1.  0.  0.  0.]': 0.006060427776000001, '[ 1.  0.  0.  1. -1.  0.  0.  0.  0.]': 0.10783883783838688, '[ 1. -1. -1.  1. -1.  1.  1.  1. -1.]': 0.8957498701654173, '[ 0. -1.  0.  1. -1.  1.  1.  1. -1.]': 0.09560302130382009, '[ 0. -1.  0.  0.  0.  1.  1.  1. -1.]': 0.005715360000000001, '[ 1. -1.  1.  1. -1.  0.  0.  1. -1.]': 0.10351712354989166, '[ 1. -1.  1.  1. -1.  0.  0.  0.  0.]': 0.01183637069416182, '[ 1.  1.  0.  1. -1.  0.  1. -1. -1.]': 0.8226905886720001, '[ 1.  1.  0.  1. -1.  0.  0.  0. -1.]': 0.4252589207654356, '[-1.  0.  0.  0.  0. -1.  1.  1.  1.]': 0.53136, '[-1.  0.  0.  0.  0.  0.  1.  0.  1.]': 0.3991250808733959, '[ 0.  0. -1.  1. -1.  1.  1.  1. -1.]': 0.23145948770882815, '[ 0.  0. -1.  0.  0.  1.  1.  1. -1.]': 0.20003434938529338, '[ 1.  0.  1.  1. -1.  1. -1.  0. -1.]': 0.014353361671449344, '[ 1.  0.  0.  1. -1.  0.  1.  0. -1.]': 0.8999387491739542, '[-1.  1. -1.  1.  1.  1.  1. -1. -1.]': 0.8986073174558039, '[ 0.  1. -1.  1.  0.  1.  1. -1. -1.]': 0.14230080000000003, '[ 0.  1. -1.  1.  0.  1.  0.  0. -1.]': 0.017216064000000003, '[ 0.  1. -1.  0.  0.  1.  0.  0.  0.]': 0.1491791798138181, '[ 1.  1.  1.  0. -1.  0.  1. -1. -1.]': 0.43920000000000003, '[ 1.  0.  1.  0.  0.  0.  0. -1.  0.]': 0.08297722201907165, '[ 1.  0.  0.  1. -1.  1. -1. -1.  1.]': 0.0, '[ 0.  0.  0.  1.  0.  1. -1. -1.  1.]': 0.040798080000000014, '[ 0.  0.  0.  0.  0.  1.  0. -1.  1.]': 0.08362828800000001, '[ 1.  1.  1. -1. -1.  0.  0. -1.  1.]': 0.8999509993391633, '[ 1.  1.  1.  1. -1. -1. -1.  1. -1.]': 0.8837870413414661, '[ 1.  0.  1.  1. -1.  0. -1.  1. -1.]': 0.1765807827696148, '[ 1.  0.  1. -1. -1.  1.  0. -1.  1.]': 0.71125632, '[ 1. -1. -1.  1.  1.  1. -1.  1. -1.]': 0.8988858539646432, '[ 1. -1. -1.  1.  0.  1. -1.  1.  0.]': 0.23724205849879754, '[ 1.  0. -1.  1.  0.  1. -1.  0.  0.]': 0.1276750418916981, '[-1.  0.  1.  0. -1.  1. -1.  1.  1.]': 0.7792040448, '[-1.  0.  0.  0.  0.  1. -1.  1.  1.]': 0.11715840000000002, '[-1.  0.  0.  0.  0.  0.  0.  1.  1.]': 0.08173707749903056, '[ 1.  0.  0. -1.  0.  0.  1.  1. -1.]': 0.00707823145416994, '[ 1.  0.  0. -1.  0.  0.  0.  1.  0.]': 0.07821239222015643, '[ 1.  0.  1.  0.  1. -1.  0.  0. -1.]': 0.7292144212424109, '[ 1. -1. -1.  0. -1.  1.  0.  1.  1.]': 0.0, '[ 1.  0.  0. -1.  0.  0.  1. -1.  1.]': 0.0014230080000000006, '[ 1.  1.  0.  0. -1.  0.  1.  0. -1.]': 0.3411240281011674, '[ 1.  1.  0.  0.  0.  0.  0.  0. -1.]': 0.20497549632436576, '[0. 1. 0. 0. 0. 0. 0. 0. 0.]': 0.21045496088853974, '[0. 0. 0. 1. 0. 0. 0. 0. 0.]': 0.1695677140162152, '[-1.  0.  1.  0.  1. -1.  1. -1.  1.]': 0.8933591721334645, '[-1.  0.  1.  0.  0.  0.  1. -1.  1.]': 0.49775467447662225, '[-1.  0.  1.  0.  0.  0.  0.  0.  1.]': 0.07836731050050194, '[ 0.  0.  0.  1.  0. -1.  1.  1. -1.]': 0.07983438901418263, '[ 0.  0.  1.  1. -1.  1.  1. -1. -1.]': 0.0, '[ 0.  0.  0.  1.  0.  1.  1. -1. -1.]': 0.0, '[ 0.  0.  0.  1.  0.  0.  1.  0. -1.]': 0.3427477462804548, '[ 0.  1.  0.  1. -1.  1. -1.  1. -1.]': 0.0, '[ 0.  1.  0.  1. -1.  1. -1. -1.  1.]': 0.0, '[ 0.  1.  0.  0. -1.  1.  0. -1.  1.]': 0.0, '[-1.  1. -1.  1.  1.  1. -1. -1.  1.]': 0.71125632, '[ 0.  1. -1.  0.  1.  1. -1. -1.  1.]': 0.3147247872000001, '[ 0.  0.  0.  1. -1.  0.  1.  1. -1.]': 0.0862707152983328, '[ 1. -1.  1.  1.  1. -1. -1.  1. -1.]': 0.08999999999999998, '[ 0.  0.  0.  1.  1.  0. -1.  1. -1.]': 0.49313113745505643, '[ 0.  0. -1.  1.  1.  1. -1.  1. -1.]': 0.8746672520960409, '[ 0.  0. -1.  1.  1.  0.  0.  1. -1.]': 0.17726824507975406, '[ 0.  0.  0.  1.  1.  0.  0.  0. -1.]': 0.16317046027731139, '[ 1.  0.  0.  1. -1.  0.  0.  1. -1.]': 0.004087812096000001, '[ 1.  1.  0.  1. -1.  0. -1.  1. -1.]': 0.0, '[ 1.  0.  0.  0.  1.  0.  1. -1. -1.]': 0.6865995662120736, '[ 1.  0.  0.  0.  1.  0.  0. -1.  0.]': 0.28781848243246494, '[ 1. -1.  1.  1.  0.  0.  1. -1. -1.]': 0.53136, '[ 1.  0.  1.  1.  0.  0.  0. -1. -1.]': 0.17400430596096003, '[-1. -1.  1.  1.  1. -1.  1. -1.  1.]': 0.53136, '[ 0. -1.  0.  1.  1. -1.  1. -1.  1.]': 0.14230080000000003, '[ 0. -1.  0.  0.  1.  0.  1. -1.  1.]': 0.08717932800000001, '[ 0. -1.  0.  0.  1.  0.  0.  0.  1.]': 0.5082897342380772, '[ 1. -1. -1.  1.  1. -1.  1. -1.  1.]': 0.6640704000000001, '[ 0. -1.  0.  0.  1. -1.  1.  0.  1.]': 0.010497600000000003, '[ 0. -1.  0.  0.  0.  0.  1.  0.  1.]': 0.03579282432000001, '[-1.  0.  0.  1.  1.  1. -1. -1.  1.]': 0.6640704000000001, '[ 1.  0.  0.  1.  0.  0. -1.  1. -1.]': 0.12019133814204001, '[ 1.  1. -1. -1.  1. -1. -1.  1.  1.]': 0.18000000000000002, '[ 1.  1. -1. -1.  0. -1.  0.  1.  1.]': 0.032400000000000005, '[ 1.  0. -1. -1.  0.  1.  1. -1.  1.]': 0.14436624829321681, '[ 1.  0. -1. -1.  0.  1.  1.  1. -1.]': 0.08091480981667926, '[ 1.  0. -1. -1.  0.  1.  0.  1.  0.]': 0.16907631841583726, '[ 1.  0.  0. -1.  0.  1.  0.  0.  0.]': 0.08438667500296004, '[ 0.  1. -1.  1.  0.  1. -1. -1.  1.]': 0.04665600000000001, '[ 0.  0.  0.  1.  0.  0. -1.  0.  1.]': 0.18910018191000924, '[ 1. -1. -1. -1.  1.  1.  1. -1.  1.]': 0.6050880000000001, '[ 1.  0.  0.  0.  0.  0.  1. -1.  0.]': 0.3071986320619815, '[ 0. -1.  1.  1.  0.  1. -1.  1. -1.]': 0.05031257029153119, '[ 0.  0.  1.  1.  0.  0. -1.  1. -1.]': 0.0023044704768000004, '[ 1.  0. -1.  0.  1.  1. -1. -1.  1.]': 0.43920000000000003, '[-1.  1.  1.  1. -1. -1.  1. -1.  1.]': 0.08999999999842519, '[-1.  1.  0.  1. -1.  0.  1. -1.  1.]': 0.014644800000000003, '[-1.  1.  0.  1.  0.  0.  0. -1.  1.]': 0.004222368000000001, '[-1.  0.  0.  1.  0.  0.  0.  0.  1.]': 0.01274446827749376, '[ 0.  1. -1.  0.  1.  0.  0.  1. -1.]': 0.8999999801229704, '[ 0.  1. -1.  0.  1.  0.  0.  0.  0.]': 0.18366201536460802, '[ 1.  1.  1. -1. -1.  1.  1. -1. -1.]': 0.8991086831717146, '[ 1.  0.  1. -1. -1.  1.  1.  0. -1.]': 0.08780050562905466, '[ 1.  0.  1. -1.  0.  0.  0.  0.  0.]': 0.36541096401830825, '[ 1.  0.  0.  1. -1.  1. -1.  1. -1.]': 0.0, '[ 1.  0.  1. -1. -1.  0.  0.  1.  0.]': 0.15075703337591162, '[ 1.  0.  1.  0. -1.  1.  0.  0. -1.]': 0.04023939444703203, '[ 1. -1. -1.  1.  1. -1. -1.  1.  1.]': 0.80336323584, '[ 0.  0. -1.  1.  1. -1. -1.  1.  1.]': 0.23669107200000006, '[ 0.  0. -1.  0.  1.  0. -1.  1.  1.]': 0.17465040698124235, '[ 0.  0.  0.  0.  1.  0. -1.  0.  1.]': 0.12356894699800508, '[ 1.  1.  0. -1.  0.  1. -1.  1. -1.]': 0.46791938025507784, '[ 1.  1.  0. -1.  0.  0.  0.  1. -1.]': 0.5166908152634229, '[ 1.  1.  0. -1.  0.  0.  0.  0.  0.]': 0.4530459712676638, '[ 1.  0.  1. -1. -1.  0.  1.  1. -1.]': 0.003238133760000001, '[ 1.  0.  1. -1. -1.  1. -1.  0.  1.]': 0.80336323584, '[ 0.  1.  0.  1.  1. -1.  1. -1. -1.]': 0.11436093711449065, '[ 0.  1.  0.  1.  0.  0.  1. -1. -1.]': 0.7622937959970132, '[ 0.  1.  0.  1.  0.  0.  0.  0. -1.]': 0.04060401236339608, '[ 1.  0.  1. -1.  0.  1.  0.  0. -1.]': 0.10230214962659329, '[ 1. -1.  0.  0.  1.  1. -1. -1.  1.]': 0.18000000000000002, '[ 1. -1.  0.  0.  0.  1. -1.  0.  1.]': 0.032400000000000005, '[ 1.  0.  0. -1.  1.  1. -1.  1. -1.]': 0.20853391485073797, '[ 1.  0.  0. -1.  1.  0.  0.  1. -1.]': 0.2833632388490027, '[ 1.  0.  0. -1.  1.  0.  0.  0.  0.]': 0.30008464089931075, '[ 0.  1.  0.  0.  0.  0.  1. -1.  0.]': 0.10898219359458039, '[ 1. -1.  1.  1.  0.  0. -1.  1. -1.]': 0.014025672806400004, '[ 1. -1.  0.  1.  0.  0.  0.  1. -1.]': 0.016788547016103893, '[ 1. -1.  0.  1.  0.  0.  0.  0.  0.]': 0.252959643704298, '[ 1. -1.  0.  1.  1.  0.  1. -1. -1.]': 0.8933591721334645, '[ 1. -1.  0.  1.  1.  0.  0.  0. -1.]': 0.7863908520070013, '[ 1.  0.  0.  0.  1.  1. -1.  0. -1.]': 0.10932813459445834, '[ 1.  1.  1. -1.  1. -1. -1.  1. -1.]': 0.8986073174558039, '[ 1.  0.  1.  0.  1. -1. -1.  1. -1.]': 0.12155940635432426, '[ 1.  0.  1.  0.  0.  0. -1.  1. -1.]': 0.019828800000000004, '[ 1.  0.  1.  0.  0.  0. -1.  0.  0.]': 0.5041093189912517, '[ 0.  0.  0.  1.  0.  0.  0. -1.  1.]': 0.03574278277879714, '[ 0.  0. -1.  1.  1.  1.  1. -1. -1.]': 0.8916989651668307, '[ 0.  0.  0.  1.  1.  0.  1. -1. -1.]': 0.6637224702573462, '[ 0.  0. -1.  0.  1.  0.  1. -1.  1.]': 0.1710132684976502, '[ 1. -1.  1.  1.  1. -1. -1. -1.  1.]': 0.8683340651200512, '[ 0.  0.  1.  1.  1. -1. -1. -1.  1.]': 0.10836276805785748, '[ 0.  0.  1.  0.  1.  0. -1. -1.  1.]': 0.005832000000000001, '[ 1.  0.  0.  1. -1. -1.  1. -1.  1.]': 0.887029633073173, '[ 0.  0.  1.  0.  1.  0.  1. -1. -1.]': 0.8999999689421414, '[ 0.  0.  1.  0.  1.  0.  0.  0. -1.]': 0.3601955091096911, '[ 0.  0.  1.  1. -1.  1. -1. -1.  1.]': 0.7792040448, '[-1.  1.  1. -1.  1. -1.  1. -1.  1.]': 0.6640704000000001, '[-1.  1.  0.  0.  1. -1.  1. -1.  1.]': 0.21280320000000003, '[ 0.  1.  0.  0.  0. -1.  1. -1.  1.]': 0.005832000000000001, '[ 0.  1.  0.  0.  0. -1.  0.  0.  1.]': 0.060803331813522446, '[ 0.  0.  1. -1.  0.  0.  1.  1. -1.]': 0.14230080000000003, '[ 0.  0.  1. -1.  0.  0.  0.  1.  0.]': 0.03401222400000001, '[ 1.  0.  1.  0. -1.  0.  0.  1. -1.]': 0.1256272172561233, '[ 1.  1.  1. -1.  1. -1. -1. -1.  1.]': 0.43920000000000003, '[ 0.  1.  1.  0.  1. -1. -1. -1.  1.]': 0.08012222440331712, '[ 0.  1.  1.  0.  0. -1.  0. -1.  1.]': 0.005832000000000001, '[ 0.  0.  1.  0.  0. -1.  0.  0.  1.]': 0.030532335693313976, '[ 1.  0.  1.  1. -1. -1.  0.  1. -1.]': 0.19806571008, '[ 0.  0.  1.  0. -1.  0.  0.  1.  0.]': 0.10082464862884113, '[ 1.  1.  1.  0. -1. -1.  1.  0. -1.]': 0.8226905886720001, '[ 1.  0.  1.  0. -1.  0.  1.  0. -1.]': 0.5241795695384659, '[ 1. -1.  1.  0.  0.  1. -1. -1.  1.]': 0.6640704000000001, '[ 1. -1.  1.  0.  0.  0.  0. -1.  1.]': 0.02071551949212334, '[ 0. -1.  1.  0.  0.  0.  0.  0.  1.]': 0.1658459859538879, '[ 1.  1.  0.  0.  1. -1. -1.  1. -1.]': 0.749005056, '[ 1.  1.  0.  0.  0.  0. -1.  1. -1.]': 0.053913600000000006, '[ 1. -1.  1.  0. -1.  1.  1.  0. -1.]': 0.000862230474208731, '[ 0.  1.  1.  0. -1. -1.  1.  1. -1.]': 0.0, '[ 0.  1.  1.  0. -1.  0.  0.  1. -1.]': 0.060723538619132135, '[ 0.  1.  1.  0. -1.  0.  0.  0.  0.]': 0.07247932581827048, '[ 0.  0.  1.  1. -1.  0.  0.  0.  0.]': 0.10598241542996226, '[ 1. -1.  1.  0.  0.  0. -1.  0.  1.]': 0.26601980941098424, '[ 1.  1.  0. -1. -1.  1.  0.  1. -1.]': 0.19891181617607442, '[ 1.  1.  0.  0. -1.  1.  0.  0. -1.]': 0.50824597073114, '[ 1. -1.  1.  1. -1.  0.  1.  0. -1.]': 0.43920000000000003, '[ 0. -1.  1.  0.  1.  1.  1. -1. -1.]': 0.71125632, '[ 0. -1.  1.  0.  0.  1.  1. -1.  0.]': 0.020736000000000004, '[ 0.  0.  1.  0.  0.  0.  1. -1.  0.]': 0.17241923510623355, '[ 0.  0.  1.  0.  0.  0.  1.  0. -1.]': 0.28519454166178293, '[-1.  0.  1.  0.  1. -1. -1.  1.  1.]': 0.009562613760000003, '[ 0.  0.  1.  0.  0. -1. -1.  1.  1.]': 0.0029859840000000006, '[ 0.  0.  1.  1. -1.  0.  0.  1. -1.]': 0.049781568957972484, '[ 1. -1.  1. -1.  1. -1. -1.  1.  1.]': 0.749005056, '[ 0. -1.  1.  0.  1. -1. -1.  1.  1.]': 0.099816008430183, '[-1.  0.  1.  0.  1.  1. -1. -1.  1.]': 0.43920000000000003, '[ 0. -1.  0.  1. -1.  1. -1.  1.  1.]': 0.0, '[ 0. -1.  0.  0.  0.  1. -1.  1.  1.]': 0.0, '[ 1.  0.  1.  0. -1.  1. -1. -1.  1.]': 0.324, '[ 0.  0.  1.  0.  0.  1. -1. -1.  1.]': 0.43920000000000003, '[ 0.  0.  1.  0.  0.  1.  0. -1.  0.]': 0.05601411069192182, '[ 1.  0.  1. -1.  0.  0.  0. -1.  1.]': 0.4155368030312373, '[ 1. -1. -1. -1.  1.  1.  1.  1. -1.]': 0.08999999999999998, '[ 0. -1. -1.  0.  1.  1.  1.  1. -1.]': 0.011156089461633647, '[ 0. -1.  0.  0.  0.  1.  1.  0.  0.]': 0.0007558272000000002, '[ 1.  0.  1. -1.  0.  1. -1. -1.  1.]': 0.6050880000000001, '[ 1.  0.  1. -1.  0.  0. -1.  0.  1.]': 0.1729489978368, '[ 1.  0.  1. -1.  1.  0. -1.  1. -1.]': 0.12906065063323346, '[ 1.  0.  1. -1.  1.  0. -1.  0.  0.]': 0.03998419200000001, '[ 1.  0.  1. -1.  0.  1.  1. -1. -1.]': 0.534428050178035, '[ 1.  0.  1. -1.  0.  0.  1. -1.  0.]': 0.3771561997214926, '[ 1.  0.  0.  1.  0.  0.  0.  0. -1.]': 0.111334745678652, '[ 1.  0. -1.  0.  1. -1. -1.  1.  1.]': 0.18000000000000002, '[ 1.  0. -1.  0.  0. -1.  0.  1.  1.]': 0.032400000000000005, '[ 1.  0. -1. -1.  1.  0.  0.  0.  1.]': 0.749005056, '[ 1.  0.  1. -1.  1.  0.  1. -1. -1.]': 0.8978239335246937, '[ 1.  0.  1. -1.  1.  0.  0. -1.  0.]': 0.5664988122420468, '[ 1. -1. -1.  0.  0.  1. -1.  1.  1.]': 0.0, '[ 1. -1. -1.  0.  0.  0.  0.  1.  1.]': 0.05832000000000001, '[ 1.  0.  1. -1.  0.  1.  0. -1.  0.]': 0.1664663866381173, '[ 1. -1.  1. -1.  1.  0.  0. -1.  1.]': 0.8226905886720001, '[ 1. -1.  1. -1.  0.  0.  0.  0.  1.]': 0.07664670070505866, '[ 1.  1.  0.  0.  0.  0. -1.  0.  0.]': 0.020248704000000003, '[ 1.  1.  1. -1.  0.  0. -1. -1.  1.]': 0.18000000000000002, '[ 1. -1.  1.  1.  0.  0. -1. -1.  1.]': 0.06377606064635906, '[ 1. -1.  0.  1.  0.  0. -1.  0.  1.]': 0.008981280000000001, '[ 0.  1.  1.  0. -1.  1.  1. -1. -1.]': 0.02849776994694612, '[ 0.  0.  1.  0.  0.  1.  1. -1. -1.]': 0.14273967774523605, '[ 1.  1.  0. -1.  0.  1.  1. -1. -1.]': 0.13255394379052737, '[ 1.  1.  0. -1.  0.  0.  1.  0. -1.]': 0.0956247083967157, '[ 0.  1.  1.  0.  1. -1.  1. -1. -1.]': 0.8837870413414661, '[ 0.  1.  0.  0.  1.  0.  1. -1. -1.]': 0.26227700963525924, '[ 0.  1.  0.  0.  1.  0.  0.  0. -1.]': 0.22935715454772987, '[ 1. -1.  1. -1.  0.  0.  1. -1.  1.]': 0.0, '[ 1.  0.  0.  1. -1.  1.  1. -1. -1.]': 0.43920000000000003, '[ 1.  0.  0.  0.  0.  1.  1. -1. -1.]': 0.15728188696786977, '[ 1.  0.  0.  0.  0.  1.  0. -1.  0.]': 0.04964043223274566, '[ 1.  1. -1. -1.  0.  0.  1.  1. -1.]': 0.023798080347854376, '[ 1.  1. -1.  1.  1. -1. -1. -1.  1.]': 0.6050880000000001, '[ 1.  1.  0.  1.  0. -1. -1. -1.  1.]': 0.4703388019057232, '[ 1.  1.  0.  0.  0.  0. -1. -1.  1.]': 0.005832000000000001, '[ 1.  1.  0. -1.  0. -1.  1.  1. -1.]': 0.0, '[ 1.  1.  0.  0.  0. -1.  0.  1. -1.]': 0.0, '[ 1.  1.  0.  0.  0. -1.  0.  0.  0.]': 0.040664380151410634, '[ 1.  1.  1. -1.  0. -1.  1. -1.  0.]': 0.324, '[ 1. -1.  0.  0.  1. -1.  1. -1.  1.]': 0.53136, '[ 1. -1.  1.  1. -1. -1. -1.  1.  1.]': 0.08992869465373717, '[ 1. -1.  0.  1.  0. -1. -1.  1.  1.]': 0.008424000000000001, '[ 0.  1.  1.  0.  1.  0.  0. -1. -1.]': 0.021131253239820093, '[ 1.  1.  0. -1.  0.  1.  0.  0. -1.]': 0.07872573351866424, '[ 1. -1. -1.  1.  1.  0.  0.  1. -1.]': 0.1412185717678201, '[ 0.  0.  1.  1.  1. -1.  1. -1. -1.]': 0.8999973061601821, '[ 0.  0. -1.  1.  0.  0. -1.  1.  1.]': 0.015163200000000002, '[ 0.  0. -1.  1.  0.  0.  0.  0.  1.]': 0.09382872414207986, '[ 1.  0.  0.  1.  0.  0.  1. -1. -1.]': 0.860417581400064, '[ 0.  0.  1.  1.  0.  1.  0. -1. -1.]': 0.0, '[ 1. -1.  0.  1.  1. -1.  0.  1. -1.]': 0.0020757757461158043, '[ 1.  1. -1.  1. -1.  0.  0.  1. -1.]': 0.0, '[ 1.  0. -1.  1.  0.  0.  0.  1. -1.]': 0.005435817984000002, '[ 0.  0. -1.  1.  0.  0.  1.  1. -1.]': 0.01639368341984379, '[ 1.  0. -1.  1. -1.  0.  1.  1. -1.]': 0.80336323584, '[ 0. -1.  0. -1.  1.  1.  1. -1.  1.]': 0.05832000000000001, '[-1.  1. -1.  1.  1. -1.  1. -1.  1.]': 0.08999957908752847, '[ 0.  0. -1.  1.  1. -1.  1. -1.  1.]': 0.07932971725225264, '[ 0.  0.  0.  1.  0. -1.  0.  0.  1.]': 0.06461166767405631, '[ 0.  1.  0. -1.  0.  0.  0.  1.  0.]': 0.00719153123065872, '[ 1.  0.  1. -1.  0. -1. -1.  1.  1.]': 0.15685747200000003, '[ 1.  1.  0. -1.  1. -1.  0.  1. -1.]': 0.8896237064585384, '[ 1.  0.  1.  0.  0. -1.  0.  0.  0.]': 0.34779893176317606, '[ 0.  0.  1. -1.  1.  1.  1. -1. -1.]': 0.8916989651668307, '[ 0.  0.  0.  0.  1.  1.  1. -1. -1.]': 0.456799401301028, '[ 0.  0.  0.  0.  1.  1.  0. -1.  0.]': 0.6164277661357302, '[ 1.  0.  1. -1.  0. -1.  0.  0.  1.]': 0.004299816960000001, '[ 1.  1. -1. -1.  1.  1. -1.  1. -1.]': 0.8988858539646432, '[ 1.  1. -1. -1.  0.  1.  0.  1. -1.]': 0.20907639778354795, '[ 1.  0.  1.  0.  1. -1. -1. -1.  1.]': 0.53136, '[ 1.  0.  1.  0.  0.  0. -1. -1.  1.]': 0.17962560000000002, '[ 1. -1.  1. -1.  1. -1.  1. -1.  1.]': 0.43920000000000003, '[ 1.  0.  1. -1.  0. -1.  1. -1.  1.]': 0.10497600000000001, '[ 1.  1. -1. -1.  1. -1.  1. -1.  1.]': 0.6050880000000001, '[ 1.  1. -1. -1.  0.  0.  1. -1.  1.]': 0.0802417362731339, '[ 1.  1. -1. -1.  0.  0.  0.  0.  1.]': 0.005832000000000001, '[ 1.  1. -1.  0.  0.  0.  0.  0.  0.]': 0.05389487191755094, '[ 1.  0.  0. -1.  0.  0.  1.  0.  0.]': 0.023404900288656893, '[ 1. -1. -1.  1.  1.  1.  0.  0. -1.]': 0.8797338016768327, '[ 1. -1.  0.  0.  1.  0.  0.  0.  0.]': 0.49290088515593977, '[ 0.  0.  1.  1.  1.  0.  0. -1. -1.]': 0.06324480000000002, '[ 1. -1.  1.  1. -1. -1.  1.  1. -1.]': 0.8683340651200512, '[ 1.  0.  0.  1.  0.  0. -1. -1.  1.]': 0.06587025784123499, '[ 1.  1.  1. -1.  0. -1.  0.  1. -1.]': 0.324, '[ 1.  0.  1. -1.  0. -1.  0.  1.  0.]': 0.027454464000000005, '[ 1.  1.  1. -1.  0. -1.  0.  0.  0.]': 0.8896237064585384, '[ 1.  1. -1.  0.  0.  1. -1. -1.  1.]': 0.0, '[ 1.  1. -1.  0.  0.  0.  0. -1.  1.]': 0.07048487488931139, '[ 1.  1.  0.  0.  0.  0.  0. -1.  0.]': 0.0, '[ 1.  1. -1.  1.  0.  1.  0. -1. -1.]': 0.0, '[ 0.  0. -1.  1.  0.  1.  0.  0.  0.]': 0.16937040111146456, '[-1.  1.  1. -1.  1.  1.  1. -1. -1.]': 0.8999978449281457, '[-1.  1.  0.  0.  1.  1.  1. -1. -1.]': 0.7975099038420985, '[ 1.  0.  1. -1.  1. -1.  0.  1. -1.]': 0.7701350923851549, '[ 1.  0.  1. -1.  1. -1.  0.  0.  0.]': 0.4579001159541737, '[-1.  0.  0.  1.  1.  1.  1. -1. -1.]': 0.8982591468197549, '[ 1.  0.  0.  1.  0.  0.  0. -1.  0.]': 0.18356520213853195, '[-1.  0.  1.  0. -1.  1.  1. -1.  1.]': 0.6640704000000001, '[ 0.  0.  1.  0. -1.  0.  1. -1.  1.]': 0.028140418247738313, '[ 0.  0.  1.  0. -1.  0.  0.  0.  1.]': 0.246468242011143, '[ 0.  0.  0.  1.  1.  1.  0. -1. -1.]': 0.8999999999997164, '[ 1. -1. -1.  0. -1.  0.  1.  1.  1.]': 0.18000000000000002, '[ 0.  0.  1.  1.  0.  0.  0.  0. -1.]': 0.1290038769483446, '[ 0.  0.  0.  1.  1. -1.  0.  1. -1.]': 0.03772860840921414, '[ 0.  0.  0.  1.  0. -1.  0.  1.  0.]': 0.04376379994735678, '[ 0.  0.  0.  1.  1.  1. -1.  0. -1.]': 0.8999999999999998, '[ 1.  1.  0.  1.  0. -1.  1. -1. -1.]': 0.8997663466413659, '[ 1. -1.  1. -1.  0. -1.  0.  1.  1.]': 0.0, '[-1.  1. -1. -1.  1.  1.  1.  1. -1.]': 0.8999994350608439, '[-1.  1. -1.  0.  0.  1.  1.  1. -1.]': 0.312277783118179, '[ 0.  1.  0.  0.  0.  0.  0.  1. -1.]': 0.14595769793573693, '[-1. -1.  1.  0.  0.  1.  0.  0.  1.]': 0.43920000000000003, '[ 0.  1.  0.  0.  1.  1.  0. -1. -1.]': 0.050045245293019146, '[-1. -1.  1.  0.  1.  0.  1.  1. -1.]': 0.8226905886720001, '[ 0. -1.  0.  0.  1.  0.  1.  1. -1.]': 0.018880833296225648, '[ 0. -1.  0.  0.  1.  0.  1.  0.  0.]': 0.3097302368183708, '[ 0. -1.  0.  1.  1.  1. -1.  1. -1.]': 0.8999042955843034, '[ 0. -1.  0.  0.  1.  1.  0.  1. -1.]': 0.16903909997960856, '[ 0. -1.  0.  0.  1.  1.  0.  0.  0.]': 0.3487931945740502, '[ 1.  0.  0.  1.  1. -1.  1. -1. -1.]': 0.7792040448, '[ 0. -1. -1.  0. -1.  1.  1.  1.  1.]': 0.6640704000000001, '[ 0. -1.  0.  0. -1.  1.  0.  1.  1.]': 0.15394613760000003, '[ 0. -1.  0.  0.  0.  1.  0.  0.  1.]': 0.004665600000000001, '[ 0.  1.  0.  1.  1.  0.  0. -1. -1.]': 0.007889591882848667, '[ 1.  0. -1.  1.  1.  0.  1. -1. -1.]': 0.8982591468197549, '[ 1.  0.  0.  1.  1.  0.  0. -1. -1.]': 0.17052698619603518, '[ 0.  0.  0.  0.  1.  0.  0.  1. -1.]': 0.20458966416565727, '[-1.  0.  0.  1.  1.  1. -1.  1. -1.]': 0.8683340651200512, '[-1.  0.  0.  1.  1.  0.  0.  1. -1.]': 0.3056143464085982, '[ 1.  1.  0.  0.  1.  0. -1.  0. -1.]': 0.025311357082536907, '[ 1.  0.  0.  0.  1.  0.  0.  0. -1.]': 0.14099228511556522, '[-1. -1.  0.  1.  0.  0.  0.  1.  1.]': 0.0, '[ 1.  0.  0.  1.  1.  0. -1.  0. -1.]': 0.10754528535668802, '[ 0.  0.  0.  0.  1.  0.  1.  0. -1.]': 0.15394122604924765, '[-1.  0.  0.  0.  1.  0.  1. -1.  1.]': 0.09145274233394637, '[-1.  0.  0.  0.  1.  0.  0.  0.  1.]': 0.051410164392393966, '[ 0.  0.  0.  0.  1. -1.  1. -1.  1.]': 0.5353146938271037, '[ 0.  0.  0.  0.  1. -1.  0.  0.  1.]': 0.5692160751859525, '[ 1.  0.  0. -1. -1.  1.  1. -1.  1.]': 0.010891584000000003, '[ 0.  0.  0.  0. -1.  1.  1. -1.  1.]': 0.0015683880960000005, '[ 0.  0.  0.  0. -1.  1.  0.  0.  1.]': 0.23397126184374875, '[-1.  1.  0.  1.  0.  1. -1.  1. -1.]': 0.0, '[-1.  0.  0.  1.  0.  1.  0.  1. -1.]': 0.0, '[ 1.  0. -1.  1.  0.  1.  0.  0. -1.]': 0.24245290525929547, '[ 0.  0.  0.  0.  1.  1.  0.  0. -1.]': 0.23931272417340285, '[ 0.  0.  0.  1.  0.  0. -1.  1.  0.]': 0.09282490192332468, '[ 1. -1.  0.  1.  0. -1.  0.  0.  1.]': 0.15278993003900437, '[ 0. -1.  0.  1.  1.  1.  0.  0. -1.]': 0.8999999999249068, '[ 1. -1.  1.  1.  0.  0.  0.  0. -1.]': 0.08499712342287719, '[ 1. -1.  0.  1.  0.  1.  1. -1. -1.]': 0.18000000000000002, '[ 1. -1.  0.  1.  0.  1.  0.  0. -1.]': 0.10497600000000001, '[ 1.  1.  1.  1. -1.  0. -1.  0. -1.]': 0.8995436457839178, '[ 0.  0. -1.  1.  0.  0.  1.  0.  0.]': 0.09061878132328413, '[ 1.  1. -1.  1. -1.  1.  1. -1. -1.]': 0.8992869465373716, '[ 0.  1.  0.  1.  1. -1. -1.  1. -1.]': 0.887029633073173, '[ 0. -1.  0.  1.  1.  0.  1. -1.  0.]': 0.22215392107684429, '[ 0.  0.  0.  1.  0.  0.  1. -1.  0.]': 0.21044950482714625, '[ 1.  1.  1.  1. -1. -1.  0. -1.  0.]': 0.43920000000000003, '[ 0.  1.  0.  0.  0.  1.  1. -1. -1.]': 0.12868584015239568, '[ 0.  0.  0.  0. -1.  0.  1.  0.  1.]': 0.03910239460770491, '[ 0.  0.  1.  1.  1. -1. -1.  1. -1.]': 0.10091009977817947, '[ 1. -1.  1. -1.  1.  1.  1. -1. -1.]': 0.8999234364674428, '[ 1. -1.  1. -1.  1.  1.  0.  0. -1.]': 0.10534411941636121, '[ 1. -1.  1. -1.  1.  0.  0.  0.  0.]': 0.5903900261745728, '[ 0. -1.  1.  1.  1. -1.  0.  1. -1.]': 0.20876430028135418, '[-1.  1. -1.  1.  1.  1. -1.  1. -1.]': 0.18000000000000002, '[-1.  1. -1.  1.  0.  1.  0.  1. -1.]': 0.032400000000000005, '[ 1.  1. -1.  0.  0.  1.  1. -1. -1.]': 0.05832000000000001, '[ 1.  1. -1.  0.  0.  0.  1. -1.  0.]': 0.04844832660974654, '[ 1.  0.  1.  1.  0. -1. -1.  1. -1.]': 0.4995892045440221, '[ 1.  0.  1. -1. -1.  0.  1.  0.  0.]': 0.12307844422513334, '[ 1.  1.  0.  1. -1.  1.  0. -1. -1.]': 0.30271176765220253, '[ 1.  1.  0.  1. -1.  0.  0. -1.  0.]': 0.11152816128000001, '[ 1.  1.  1. -1.  0.  0. -1.  0.  0.]': 0.80336323584, '[ 1. -1.  1.  0.  0.  0.  0.  0.  0.]': 0.07082409100464057, '[ 1.  0.  1.  0.  1.  0. -1.  0. -1.]': 0.10251165708226448, '[-1.  1.  0.  0.  1.  0.  1.  0. -1.]': 0.2428591435950706, '[-1.  1. -1.  1.  1. -1. -1.  1.  1.]': 0.887029633073173, '[-1.  0.  0.  1.  1. -1. -1.  1.  1.]': 0.28679478865920005, '[-1.  0.  0.  1.  0.  0. -1.  1.  1.]': 0.005832000000000001, '[ 0.  0.  0.  1.  1. -1.  1.  0. -1.]': 0.10464071229210528, '[ 1.  0.  0.  1.  1. -1.  0.  0. -1.]': 0.01727625032374371, '[ 0.  0.  0. -1. -1.  1.  1.  0.  1.]': 0.2602727299674688, '[ 0.  0.  0.  0. -1.  1.  1.  0.  0.]': 0.01545842216367562, '[ 0.  0.  0.  1.  1.  0. -1. -1.  1.]': 0.32647846957056004, '[-1.  0. -1.  1.  1.  0.  1.  1. -1.]': 0.0, '[-1.  0. -1.  1.  1. -1.  0.  1.  1.]': 0.31764179265640463, '[-1.  0.  0.  1.  1. -1.  0.  0.  1.]': 0.013020673768243203, '[ 0.  0.  0.  1.  1. -1.  0.  0.  0.]': 0.18461564968987426, '[ 0. -1.  1.  1.  1.  1.  0. -1. -1.]': 0.53136, '[ 0. -1.  1.  0.  1.  1.  0.  0. -1.]': 0.13888561902927238, '[ 1.  1.  0.  0. -1.  1. -1.  1. -1.]': 0.033908147392884176, '[-1.  0. -1.  1.  1.  1.  0.  1. -1.]': 0.749005056, '[ 1.  0. -1.  1.  1.  0.  0.  0. -1.]': 0.016731927544371056, '[-1.  1. -1.  1.  1.  0.  0.  1. -1.]': 0.43920000000000003, '[ 0.  1. -1.  1.  1.  0.  0.  0. -1.]': 0.4770698761295337, '[ 1. -1.  1.  0.  1.  0. -1.  1. -1.]': 0.08099999395905769, '[ 0.  0. -1.  1.  1.  0.  1.  0. -1.]': 0.0020230914249570325, '[ 0.  0.  1.  1.  1. -1.  0.  0. -1.]': 0.23118622560938717, '[-1. -1.  1.  1.  1. -1.  1.  1. -1.]': 0.8982591468197549, '[ 0. -1.  0.  1.  1. -1.  1.  1. -1.]': 0.044595677152326346, '[ 0.  1. -1.  1.  0.  0.  1.  0. -1.]': 0.07671771556706693, '[ 1.  1.  1. -1.  1. -1.  1. -1. -1.]': 0.8683340651200512, '[ 1.  1.  0.  0.  1. -1.  1. -1. -1.]': 0.12738924380160002, '[ 0.  0.  1.  0.  0.  0.  0. -1.  1.]': 0.337893007559926, '[ 1.  1. -1. -1.  1.  1.  1. -1. -1.]': 0.08999999999999998, '[ 1.  0.  0. -1.  1.  1.  1. -1. -1.]': 0.18428052007258783, '[ 1.  1.  0.  0.  1. -1.  0.  0. -1.]': 0.14298543295341976, '[ 0. -1. -1.  1.  1.  0.  1.  1. -1.]': 0.0, '[ 0. -1.  0.  0.  1. -1.  0.  1.  1.]': 0.047516544000000015, '[ 0. -1.  0.  0.  1.  0.  0.  1.  0.]': 0.1552087529709453, '[ 1.  0. -1.  1.  1.  0. -1.  1. -1.]': 0.13465111793359522, '[ 1.  1. -1.  0.  0.  0.  0.  1. -1.]': 0.0513936638427383, '[ 0.  0. -1.  1.  1.  1.  0.  0. -1.]': 0.8999999966651878, '[ 1.  1. -1. -1.  1.  0.  0.  1. -1.]': 0.85052197675008, '[-1.  0.  0.  0.  1.  1.  1.  0. -1.]': 0.7237957628474495, '[ 1.  0. -1.  0.  1. -1.  0.  0.  1.]': 0.8999387491739542, '[-1.  1.  0.  1.  1.  0.  1. -1. -1.]': 0.10497600000000001, '[ 1.  1. -1. -1.  1.  1. -1. -1.  1.]': 0.71125632, '[ 0.  1. -1.  0.  1.  0. -1.  0.  1.]': 0.12753788774400004, '[ 0.  1. -1.  1.  1.  0. -1.  1. -1.]': 0.18000000000000002, '[ 0.  0.  0.  1.  1.  0. -1.  0.  0.]': 0.31891365901212154, '[-1.  1.  1.  1.  1. -1.  1. -1. -1.]': 0.8896237064585384, '[ 1. -1.  0.  0.  1. -1.  0.  0.  1.]': 0.7792040448, '[ 1.  0.  0. -1.  1.  1. -1. -1.  1.]': 0.43920000000000003, '[ 0.  0.  0.  0. -1.  1. -1.  1.  1.]': 0.03277606981834742, '[ 0.  0.  0.  0. -1.  0.  0.  1.  1.]': 0.10464152701375895, '[ 0.  1.  0.  0.  1.  0. -1.  1. -1.]': 0.8999978449281457, '[ 0.  1.  0. -1.  1.  1. -1. -1.  1.]': 0.07905600000000002, '[ 0.  1.  0. -1.  1.  0.  0. -1.  1.]': 0.09562613760000002, '[ 0.  0.  0. -1.  1.  0.  0.  0.  1.]': 0.3461047301503207, '[ 0.  1. -1.  0.  1.  1.  1. -1. -1.]': 0.16550381912558804, '[ 0.  1. -1.  0.  1.  0.  1.  0. -1.]': 0.06723607470010232, '[ 1.  1.  0. -1.  1.  0.  1. -1. -1.]': 0.25097130242205024, '[ 1.  1.  0. -1.  1.  0.  0.  0. -1.]': 0.12040478338938936, '[ 1.  0.  0.  0.  1.  1.  0. -1. -1.]': 0.026071044675381842, '[ 1.  0.  0. -1.  1. -1.  1.  1. -1.]': 0.0, '[ 0.  0.  0. -1.  1.  0.  1.  1. -1.]': 0.515560765169664, '[ 0.  0.  0.  0.  1.  0.  1. -1.  0.]': 0.2895428865420866, '[ 0.  0. -1.  0.  1.  0.  1.  1. -1.]': 0.014095866827723947, '[ 1. -1.  1. -1.  1. -1.  1.  1. -1.]': 0.860417581400064, '[ 1. -1.  1.  0.  1. -1.  0.  1. -1.]': 0.31972839517270824, '[ 1.  0. -1. -1.  1.  1.  0.  1. -1.]': 0.13448822247221867, '[ 1.  0. -1. -1.  1.  1.  0.  0.  0.]': 0.18488589320617912, '[ 1. -1.  0.  1.  1.  0. -1.  1. -1.]': 0.08462013232036912, '[ 0.  1. -1.  1.  1.  0.  1. -1. -1.]': 0.028113621251621684, '[ 0.  1.  0.  1.  1.  0. -1.  0. -1.]': 0.020736000000000004, '[-1.  0.  1.  0.  1.  0.  1.  0. -1.]': 0.8957498701654173, '[ 1. -1.  1.  0.  1.  0.  1. -1. -1.]': 0.71125632, '[ 1.  0.  1.  0.  1.  0.  0. -1. -1.]': 0.042998169600000004, '[ 1.  0.  1.  1.  1. -1. -1.  0. -1.]': 0.00449030353025656, '[ 0.  0.  1.  0.  1.  1.  0. -1. -1.]': 0.0, '[ 0.  0.  0. -1.  1.  0.  0.  1.  0.]': 0.431070912103011, '[ 0.  0. -1.  1.  1.  1. -1. -1.  1.]': 0.749005056, '[ 0.  0. -1.  1.  1.  0. -1.  0.  1.]': 0.36800172540568404, '[ 0.  0.  1.  1.  1.  0. -1.  0. -1.]': 0.021999150177467904, '[ 1.  1. -1.  0.  1.  0.  1. -1. -1.]': 0.008026324991999999, '[ 1.  1. -1.  0.  1.  0.  0.  0. -1.]': 0.03429359879436341, '[ 1. -1.  0.  0.  1.  1.  1. -1. -1.]': 0.6425892663178111, '[ 1. -1.  0.  0.  1.  1.  0.  0. -1.]': 0.2422849088320412, '[ 0.  0.  0. -1.  1.  1.  0.  1. -1.]': 0.15563550713038485, '[-1. -1.  0.  0.  1.  1. -1.  1.  1.]': 0.0, '[ 0. -1.  0.  0.  1.  0. -1.  1.  1.]': 0.042830772361295566, '[ 0.  0.  0.  0.  1.  0. -1.  1.  0.]': 0.4256044377062901, '[ 0.  0.  0.  0.  0.  1.  1.  0. -1.]': 0.08304151797950021, '[ 0.  0.  0.  1.  0.  1. -1.  0.  0.]': 0.1525111194650285, '[ 0.  1.  0.  0.  0.  1.  0.  0. -1.]': 0.21318355356156954, '[ 0.  1.  0.  1.  0.  0. -1.  1. -1.]': 0.030472750575570806, '[ 0.  1.  0.  1.  0.  0. -1.  0.  0.]': 0.024341540260573016, '[ 1.  0.  0.  0.  1. -1. -1.  0.  1.]': 0.7792040448, '[-1. -1.  1.  1.  1.  1. -1.  1. -1.]': 0.887029633073173, '[ 0.  0.  0.  0.  0.  1.  0.  1. -1.]': 0.23201666697279563, '[ 1. -1.  0.  0. -1.  1. -1.  1.  1.]': 0.0, '[ 1. -1.  0.  0. -1.  1.  0.  0.  1.]': 0.005832000000000001, '[ 1.  0. -1.  0.  0.  1.  0.  1. -1.]': 0.12027364123639232, '[ 1.  0.  0.  0.  0.  1.  0.  0. -1.]': 0.1575745052941207, '[ 0.  0.  0.  0. -1.  1.  0.  1.  0.]': 0.0350279709808796, '[ 0.  0.  1.  0. -1.  1.  0.  0.  0.]': 0.10035720398113948, '[ 0.  0.  0.  1. -1.  0.  1. -1.  1.]': 0.025258888098444544, '[ 0.  0.  0.  1. -1.  0.  0.  0.  1.]': 0.08084995546339292, '[ 0.  0.  1.  0.  1.  0. -1.  0.  0.]': 0.15357551423713464, '[ 0.  0.  0.  0.  1.  1. -1.  0.  0.]': 0.3065487789479927, '[ 0. -1.  1.  0.  1.  0. -1.  1.  0.]': 0.06320650608933219, '[ 0.  0.  0.  1.  1.  1. -1. -1.  0.]': 0.8999509993391633, '[ 0.  1.  0. -1.  1. -1.  1.  1. -1.]': 0.18000000000000002, '[ 0.  1.  0. -1.  0.  0.  1.  1. -1.]': 0.032400000000000005, '[-1.  1.  1.  1.  1. -1. -1. -1.  1.]': 0.08896237064585384, '[-1.  0.  1.  1.  1.  0. -1. -1.  1.]': 0.029129547061297157, '[-1.  0.  0.  1.  1.  0. -1.  0.  1.]': 0.2161185127170793, '[ 0.  0.  1.  1.  1.  0. -1. -1.  0.]': 0.04906070675106104, '[ 1.  1.  1. -1.  0.  0.  0.  0. -1.]': 0.8946873377067716, '[-1.  0.  0. -1.  0.  0.  1.  1.  1.]': 0.43920000000000003, '[ 0.  1.  0.  0.  1.  0.  0. -1.  0.]': 0.10568534214513309, '[-1.  0.  1.  0.  1.  1. -1.  1. -1.]': 0.0, '[ 0.  0.  1.  0.  1.  0. -1.  1. -1.]': 0.4397270728238976, '[ 1. -1.  1. -1.  0.  1.  1.  0. -1.]': 0.014025672806400004, '[ 1. -1.  1. -1.  0.  1.  0.  0.  0.]': 0.13102327054061605, '[ 1. -1.  1. -1.  0.  0.  1.  1. -1.]': 0.014460538245120003, '[ 1. -1.  1. -1.  0.  0.  0.  1.  0.]': 0.07887250114285532, '[ 1.  1.  0.  0. -1.  0. -1.  0.  1.]': 0.12524549477887575, '[ 1.  1.  1.  0.  0.  0. -1.  0. -1.]': 0.8999995480486751, '[ 0.  1.  0.  0.  1. -1.  1.  0. -1.]': 0.22203741192192003, '[ 0. -1. -1.  1.  0.  1.  1. -1.  1.]': 0.0, '[ 0. -1. -1.  1.  0.  1.  0.  0.  1.]': 0.0, '[ 0. -1.  0.  1.  0.  0.  0.  0.  1.]': 0.0523481189356432, '[-1.  0.  1. -1.  0.  1.  1. -1.  1.]': 0.18000000000000002, '[-1.  0.  1. -1.  0.  0.  1.  0.  1.]': 0.05832000000000001, '[ 0.  0.  1. -1.  0.  0.  1.  0.  0.]': 0.13718979549665716, '[-1.  0. -1.  1.  1.  0. -1.  1.  1.]': 0.18833905079660285, '[ 0.  1.  0. -1.  1. -1.  1. -1.  1.]': 0.17216064000000003, '[ 0.  1.  0. -1.  1. -1.  0.  0.  1.]': 0.025614144000000005, '[ 0.  1.  0.  0.  1. -1.  0.  0.  0.]': 0.23979800497536075, '[ 1.  0.  0.  1.  1.  0. -1. -1.  0.]': 0.0, '[ 1.  1.  0.  1.  0.  0. -1.  0. -1.]': 0.014836902478521385, '[ 1.  0.  0.  1.  0.  0. -1.  0.  0.]': 0.05165129284920167, '[ 1.  0. -1. -1.  1. -1.  0.  1.  1.]': 0.18000000000000002, '[ 1.  1. -1.  1.  0.  1. -1.  0. -1.]': 0.0, '[ 1.  0.  1.  0. -1.  0.  0. -1.  1.]': 0.2171588110680264, '[ 1.  0.  0.  0.  0. -1.  0.  1.  0.]': 0.1736694626728429, '[ 1.  1. -1.  1.  0.  1. -1. -1.  0.]': 0.0, '[ 0.  0.  0.  1.  1. -1. -1.  0.  1.]': 0.4190351224699964, '[ 1.  0.  0.  1. -1.  0. -1.  0.  1.]': 0.12243806986572545, '[ 0. -1.  1. -1.  1.  0.  1.  1. -1.]': 0.8381524709376, '[ 0. -1.  1. -1.  1.  0.  0.  1.  0.]': 0.2579778906624, '[ 1. -1.  0.  1.  0.  0.  0. -1.  1.]': 0.04690133393227559, '[ 1. -1. -1.  1.  0.  0.  1. -1.  1.]': 0.71125632, '[ 1. -1. -1.  1.  0.  0.  0.  0.  1.]': 0.17962560000000002, '[ 1. -1.  1. -1. -1.  0.  1.  0.  1.]': 0.0, '[ 0.  1.  0.  1. -1.  0. -1.  0.  1.]': 0.21821128451786603, '[ 0.  1.  0.  1. -1.  0.  0.  0.  0.]': 0.14120094460486995, '[ 0.  1.  1. -1.  1.  0.  1. -1. -1.]': 0.80336323584, '[ 0.  0.  0.  1. -1.  1.  0.  1. -1.]': 0.004342576071641235, '[ 0.  0.  0.  1. -1.  1.  0.  0.  0.]': 0.02185521381858794, '[ 1.  0.  0. -1.  0. -1.  1.  0.  1.]': 0.010497600000000003, '[ 0.  0.  0.  1.  0.  1.  0. -1.  0.]': 0.18626831709183378, '[ 0. -1.  0. -1.  1.  1.  1.  1. -1.]': 0.09028193266085817, '[ 0.  0.  1.  1.  0. -1.  0. -1.  1.]': 0.030737905920000003, '[ 1. -1.  1. -1.  1.  0.  1.  0. -1.]': 0.8982591468197549, '[ 1. -1.  1. -1.  0. -1.  1.  0.  1.]': 0.05832000000000001, '[ 1.  1.  1.  0.  1. -1. -1.  0. -1.]': 0.8999999872787011, '[ 1.  0.  0.  0.  0.  0.  0.  1. -1.]': 0.1160989370156076, '[ 1. -1.  1. -1.  0.  0. -1.  1.  1.]': 0.29845449216000003, '[ 1.  0. -1. -1.  0.  1.  1.  0.  0.]': 0.05295540999286212, '[ 1.  0. -1. -1.  0. -1.  1.  1.  1.]': 0.6640704000000001, '[ 1.  0.  0. -1.  0. -1.  1.  1.  0.]': 0.05313600000000002, '[ 1. -1.  1. -1.  1. -1.  0.  0.  1.]': 0.53136, '[ 1. -1.  1. -1.  1.  0.  0.  1. -1.]': 0.20150689905582073, '[ 1. -1.  1. -1. -1.  0.  1.  1.  0.]': 0.06527987000660036, '[ 1.  1. -1.  1.  0.  0.  1. -1. -1.]': 0.8381524709376, '[ 1.  1. -1.  1.  0.  0.  0.  0. -1.]': 0.02619892270101277, '[ 0.  1. -1.  1.  0.  0.  0.  0.  0.]': 0.08266848146354669, '[ 0.  0.  1.  1. -1.  1.  0.  0. -1.]': 0.0, '[ 1.  1. -1.  0. -1.  0.  1. -1.  1.]': 0.19101253551730116, '[ 1.  1.  0. -1.  1.  0. -1.  1. -1.]': 0.7792040448, '[ 1. -1.  0.  1.  1. -1.  0.  0.  0.]': 0.38274882261735016, '[ 1.  1. -1.  1. -1. -1.  1. -1.  1.]': 0.860417581400064, '[ 1.  1. -1.  0.  0. -1.  1. -1.  1.]': 0.22740134400000003, '[ 1.  0. -1.  0.  0. -1.  1.  0.  1.]': 0.03706560000000001, '[ 1.  0.  0.  0.  0. -1.  1.  0.  0.]': 0.2420026485679129, '[ 1.  1.  0. -1. -1.  0.  1. -1.  1.]': 0.026693839550546397, '[ 1.  1.  0. -1. -1.  0.  0.  0.  1.]': 0.018059459160715555, '[ 1. -1.  0.  0.  1.  1. -1.  1. -1.]': 0.0843893043054187, '[ 1. -1.  0.  0.  1.  0.  0.  1. -1.]': 0.08568724300038803, '[ 1.  1.  1. -1.  0.  0.  0. -1.  0.]': 0.8683340651200512, '[ 1.  0.  0.  1. -1.  0.  0. -1.  1.]': 0.07278264730962772, '[ 1.  0.  1.  1. -1.  0. -1. -1.  1.]': 0.113080800915166, '[ 1.  0.  1. -1. -1.  1.  1. -1.  0.]': 0.22203928976818554, '[ 1.  1.  1.  0. -1.  0.  0.  0. -1.]': 0.8999978449281457, '[ 0. -1.  1.  0.  1.  1.  0. -1.  0.]': 0.2609770752, '[ 0. -1.  1.  0.  1.  0.  0.  0.  0.]': 0.6283768178699507, '[ 0.  1.  1.  0.  0.  0. -1.  0.  0.]': 0.10891584000000001, '[-1.  0.  0.  0.  1.  1.  0.  0.  0.]': 0.28174757649155097, '[ 0.  1.  0.  0.  0.  0.  1.  0. -1.]': 0.08380117440523503, '[ 0.  0.  1.  0. -1.  1.  0. -1.  1.]': 0.8999749116616517, '[ 0.  0.  1.  1. -1.  0. -1.  0.  1.]': 0.2698461632667587, '[ 1. -1.  1.  1.  1. -1.  0.  0. -1.]': 0.08101325281324535, '[ 1. -1.  1.  0.  1. -1.  0.  0.  0.]': 0.39525560475464855, '[ 0. -1.  0.  0.  1.  1. -1.  1.  0.]': 0.2631535530691438, '[ 1.  1.  1.  1. -1. -1.  1. -1. -1.]': 0.6640704000000001, '[ 0.  1.  1.  1. -1.  0.  1. -1. -1.]': 0.27428751360000003, '[ 0.  1.  0.  1. -1.  0.  1.  0. -1.]': 0.06638029056000001, '[ 0.  1.  0.  0. -1.  0.  1.  0.  0.]': 0.08005483973240997, '[ 0.  1.  1.  1.  1. -1. -1.  0. -1.]': 0.2281038915663919, '[ 0.  0.  1.  0.  1. -1.  0.  0.  0.]': 0.48394087685011344, '[ 1.  0.  0.  1.  0. -1.  0.  1. -1.]': 0.07902208050328578, '[ 0.  1.  1. -1.  1.  0. -1.  1. -1.]': 0.8896237064585384, '[ 0.  0.  1. -1.  1.  0.  0.  1. -1.]': 0.24364613395317114, '[ 0.  0.  1. -1.  1.  0.  0.  0.  0.]': 0.4578264174484184, '[ 0.  0.  0. -1.  1.  0.  1. -1.  1.]': 0.632765792039513, '[ 1.  0.  0.  0.  1.  0. -1.  1. -1.]': 0.10463125905994289, '[ 1.  0.  0.  0.  1.  0. -1.  0.  0.]': 0.23911027785547315, '[ 0.  1.  0.  0.  1.  0. -1.  0.  0.]': 0.23753413274237836, '[-1.  1. -1. -1.  1.  1.  1. -1.  1.]': 0.08999387491739542, '[ 0.  1. -1. -1.  1.  0.  1. -1.  1.]': 0.0032400000000000007, '[ 0.  1. -1. -1.  1.  0.  0.  0.  1.]': 0.08461324800000002, '[ 0. -1. -1.  0.  1.  1.  1. -1.  1.]': 0.06969419366400001, '[ 0.  0.  0.  1.  1.  0.  0. -1.  0.]': 0.2577033156140883, '[ 1.  0.  0.  1.  1. -1. -1. -1.  1.]': 0.85052197675008, '[ 1.  0. -1.  1.  1.  0. -1.  0.  0.]': 0.7207141713448512, '[-1.  0. -1.  0.  1.  1.  1. -1.  1.]': 0.007881277833216, '[-1.  0. -1.  0.  1.  1.  0.  0.  1.]': 0.12104811859968002, '[ 1.  0.  1. -1.  1. -1.  1.  0. -1.]': 0.85052197675008, '[ 1.  0.  1. -1.  1.  0.  0.  0. -1.]': 0.6913834991674606, '[ 1. -1.  1.  1.  1. -1.  1. -1. -1.]': 0.43920000000000003, '[ 1.  0.  1.  1.  1. -1.  0. -1. -1.]': 0.05109350400000001, '[ 0.  0.  0. -1.  1.  1.  1.  0. -1.]': 0.2118152047487068, '[ 0.  1.  0.  0.  1.  1. -1.  0. -1.]': 0.018492652781568003, '[ 1.  1.  0.  0.  1.  0.  0. -1. -1.]': 0.06031340108569841, '[ 0.  1.  0. -1.  1.  1.  1. -1. -1.]': 0.13553143273759224, '[ 0.  1.  0. -1.  1.  0.  0.  0.  0.]': 0.2867146658301969, '[ 0.  0.  1.  1. -1.  0.  0. -1.  1.]': 0.05739991882410481, '[ 1. -1.  0.  0.  1. -1.  0.  1.  0.]': 0.07649365342696661, '[ 0.  0. -1.  0.  1.  0.  0.  0.  1.]': 0.1912497387336755, '[ 0.  1. -1.  0.  1.  1.  0.  0. -1.]': 0.4227792357992432, '[-1.  1. -1.  0.  1.  0.  1.  1. -1.]': 0.324, '[ 0.  0.  1.  0.  1. -1.  1.  0. -1.]': 0.8998504618504741, '[ 0. -1.  0.  0. -1.  1.  1.  0.  1.]': 0.0, '[ 0.  0.  1.  0.  0.  0. -1.  0.  1.]': 0.0010749542400000003, '[ 0.  0.  1.  1. -1.  0.  1.  0. -1.]': 0.24641764961373694, '[ 0.  0.  0.  1. -1.  0.  1.  0.  0.]': 0.4215024237737542, '[-1.  1.  0.  0.  1.  0.  0.  1. -1.]': 0.8999995480486751, '[-1.  1.  0.  0.  1.  0.  0.  0.  0.]': 0.26040401838307903, '[ 0. -1. -1.  1.  1.  1.  0. -1.  1.]': 0.43920000000000003, '[ 0.  0. -1.  1.  0.  1.  0. -1.  1.]': 0.12440259743268622, '[ 0.  0. -1.  0.  1.  1.  1.  0. -1.]': 0.31996657351905927, '[ 1. -1.  0. -1.  1.  1.  1.  0. -1.]': 0.10784875801718866, '[-1.  0.  0. -1.  1.  1.  1.  1. -1.]': 0.8089083978748971, '[ 0. -1.  1. -1.  1.  1.  1.  0. -1.]': 0.8797338016768327, '[ 0. -1.  1.  0.  1.  0.  0.  1. -1.]': 0.10868253573957394, '[ 0.  1.  0.  1. -1. -1.  1. -1.  1.]': 0.16461753348096003, '[ 0.  1.  0.  0. -1. -1.  1.  0.  1.]': 0.0019604851200000005, '[ 0.  1.  0. -1.  1.  1.  0.  0. -1.]': 0.24457701534630866, '[ 0.  0. -1.  1. -1.  1.  1. -1.  1.]': 0.01701814497644744, '[ 0.  0. -1.  1. -1.  0.  1.  0.  1.]': 0.4665341505317022, '[ 0. -1.  1.  0. -1.  1. -1.  1.  1.]': 0.7792040448, '[-1. -1.  1. -1.  1.  1.  1.  1. -1.]': 0.8999966327002277, '[-1. -1.  0.  0.  1.  1.  1.  1. -1.]': 0.24123068623839727, '[ 0. -1.  1.  1.  0.  0. -1.  0.  1.]': 0.055271236465144646, '[ 0.  0.  1.  1.  0.  0. -1.  0.  0.]': 0.14108942431132468, '[ 1.  0.  0. -1.  1.  1.  0.  0. -1.]': 0.12667657748565828, '[ 0.  1.  1. -1.  1.  1.  0. -1. -1.]': 0.04246638094693901, '[ 0.  0.  1. -1.  1.  1.  0.  0. -1.]': 0.2513900756506571, '[ 1.  1. -1.  1.  1.  0. -1.  0. -1.]': 0.0, '[ 1.  0.  1.  0. -1. -1.  1.  0.  0.]': 0.0, '[ 1.  0. -1.  1.  1.  1. -1.  0. -1.]': 0.899999710751152, '[ 1.  0. -1.  0.  1.  0.  0.  0.  0.]': 0.20009032941827548, '[ 1.  0.  1. -1.  1.  1. -1.  0. -1.]': 0.0018596824609574108, '[ 1. -1.  0.  0.  0.  0.  0.  1.  0.]': 0.04253264496818068, '[ 0.  1.  1.  0.  1.  0. -1.  0. -1.]': 0.06590846477479714, '[ 0.  0.  1.  0.  1.  1. -1.  0. -1.]': 0.005195029994663404, '[-1.  1. -1.  0.  1.  1.  0.  1. -1.]': 0.53136, '[-1.  1. -1.  0.  1.  1.  0.  0.  0.]': 0.13275812461761616, '[-1.  0.  1. -1.  1.  1.  0.  1. -1.]': 0.031340888064000004, '[ 1. -1.  1.  0.  1.  1.  0. -1. -1.]': 0.1288349766297751, '[ 1. -1.  0.  1.  1. -1.  1.  0. -1.]': 0.8994295572298973, '[ 1.  1.  1. -1.  1.  0. -1.  0. -1.]': 0.8982591468197549, '[ 0.  1.  1.  0. -1.  1. -1. -1.  1.]': 0.324, '[ 0.  1.  1.  0. -1.  0.  0. -1.  1.]': 0.5449581356851623, '[ 0.  0.  0.  1.  1. -1.  0. -1.  1.]': 0.17730965752417888, '[ 0.  0.  1.  0. -1.  1. -1.  0.  1.]': 0.8946873377067716, '[-1.  0.  0.  1.  1. -1.  1.  1. -1.]': 0.2289058710225164, '[ 1. -1.  1.  0.  1.  0.  0.  0. -1.]': 0.2741617089584636, '[-1.  0.  0.  1.  1.  0.  1. -1.  0.]': 0.28706194495953025, '[ 1.  0. -1.  0.  1.  0.  1.  0. -1.]': 0.0054157031300736585, '[ 0.  1.  1. -1. -1.  1.  0. -1.  1.]': 0.324, '[ 0.  1.  1. -1. -1.  0.  0.  0.  1.]': 0.1853578136473623, '[ 0.  0.  0.  1. -1.  1.  0. -1.  1.]': 0.06077011272066894, '[ 1.  0.  0.  1. -1.  1.  0. -1.  0.]': 0.0514916352, '[ 1.  0.  0. -1.  1.  0. -1.  0.  1.]': 0.8381524709376, '[ 1. -1.  1.  1.  1.  0. -1.  0. -1.]': 0.07743756637318985, '[-1.  0.  0.  0.  1.  1.  0.  1. -1.]': 0.5146434780181123, '[ 0. -1.  1.  1.  1.  0.  0.  0. -1.]': 0.09532270367541529, '[-1.  0.  0.  1.  0.  1. -1.  0.  1.]': 0.10891584000000001, '[-1.  0.  0.  1.  0.  1.  0.  0.  0.]': 0.06032258509891426, '[ 0.  1.  1.  0.  1. -1.  0.  0. -1.]': 0.4766718982617714, '[ 1. -1. -1.  0.  1.  0.  0.  0.  1.]': 0.8999607994713307, '[ 1.  0.  0.  1. -1.  0.  1. -1.  0.]': 0.8946873377067716, '[-1.  0. -1.  0.  1.  1.  1.  1. -1.]': 0.03238133760000001, '[ 1. -1.  1.  0.  1.  1. -1.  0. -1.]': 0.0, '[ 1. -1.  0.  1.  1.  1.  0. -1. -1.]': 0.53136, '[ 0.  1. -1.  0. -1.  1.  1. -1.  1.]': 0.05634641503296554, '[ 0.  1. -1.  0. -1.  1.  0.  0.  1.]': 0.006306105027921492, '[ 0.  1.  1. -1.  1. -1.  1.  0. -1.]': 0.18000000000000002, '[ 0.  1.  0.  1. -1.  0. -1.  1.  0.]': 0.0, '[-1.  1.  1.  0.  1.  0. -1.  1. -1.]': 0.8946873377067716, '[ 0. -1.  0.  1.  0.  0.  0.  1.  0.]': 0.034239579635782724, '[ 0.  0.  0. -1.  1.  1.  0.  0.  0.]': 0.1937375879220284, '[ 0.  1.  0. -1.  1.  0. -1.  0.  1.]': 0.0, '[-1.  1. -1.  1. -1.  1.  1. -1.  1.]': 0.08994295572298973, '[ 0. -1.  1.  0.  0.  1.  0. -1.  1.]': 0.53136, '[ 1.  1. -1.  0. -1.  0.  0.  0.  1.]': 0.002359751178605197, '[ 1. -1.  0. -1.  0. -1.  1.  1.  1.]': 0.18000000000000002, '[ 1.  1.  1.  0. -1. -1.  0.  0.  0.]': 0.8965998961323338, '[ 1.  0.  1.  0. -1.  1.  1. -1. -1.]': 0.03008627419548019, '[ 1.  0.  1.  0. -1.  1.  0. -1.  0.]': 0.037324800000000005, '[ 1.  0.  0. -1.  0.  1.  0.  1. -1.]': 0.0742450222197965, '[ 1.  0.  1. -1.  0. -1.  1.  0.  0.]': 0.04665600000000001, '[ 1.  0.  0.  1.  0. -1.  0.  0.  0.]': 0.06069423647880933, '[-1.  0.  0.  0.  1.  0.  0.  1.  0.]': 0.20189457746010864, '[ 1.  1. -1.  1.  0.  0. -1.  1. -1.]': 0.0, '[ 1. -1. -1.  0.  0.  1.  1. -1.  1.]': 0.0, '[ 1. -1. -1.  0.  0.  1.  0.  0.  1.]': 0.0, '[ 1. -1.  0.  0.  0.  1.  0.  0.  0.]': 0.00137373331639763, '[ 0.  1.  0.  1. -1.  1.  0.  0. -1.]': 0.014514055974454192, '[ 0.  1.  0.  0. -1.  1.  0.  0.  0.]': 0.10440116919774217, '[ 0. -1.  1.  0.  1. -1.  1.  1. -1.]': 0.8933591721334645, '[ 1. -1.  0.  0.  1.  0.  0. -1.  1.]': 0.6640704000000001, '[ 1. -1. -1.  1.  1.  1.  1. -1. -1.]': 0.53136, '[ 1. -1.  0.  0.  1.  0. -1.  0.  1.]': 0.6640704000000001, '[ 0.  1. -1. -1.  1. -1.  0.  1.  1.]': 0.18000000000000002, '[ 1.  0.  0. -1.  1.  0.  0. -1.  1.]': 0.324, '[ 0.  1. -1. -1.  1.  0.  1.  1. -1.]': 0.43920000000000003, '[ 0.  1.  1.  1. -1.  0. -1. -1.  1.]': 0.731985546375259, '[-1.  0.  0.  1.  0.  1.  1.  0. -1.]': 0.5377905525763126, '[ 1.  0.  0.  1.  1. -1. -1.  0.  0.]': 0.04162513650687118, '[ 1.  0. -1. -1.  1.  1.  1.  0. -1.]': 0.08099999876079893, '[ 0.  0.  0.  0.  0. -1.  0.  1.  1.]': 0.07611459840000001, '[ 1.  1. -1. -1.  1.  0.  0.  0.  0.]': 0.21633875581501444, '[ 1.  0. -1.  0.  1.  0.  0.  1. -1.]': 0.07012654645793441, '[ 1.  1. -1.  0.  0.  1.  0.  0. -1.]': 0.05124208793375038, '[ 0.  0.  0.  0.  1. -1.  1.  0.  0.]': 0.5047334769755005, '[-1.  1. -1.  0.  1.  1. -1.  0.  1.]': 0.06324480000000002, '[ 0.  1.  0.  0.  1. -1.  0.  1. -1.]': 0.8999992938260548, '[ 0.  0.  0.  0.  1. -1.  0.  1.  0.]': 0.4828974475199064, '[ 0. -1. -1.  1.  1.  0. -1.  1.  1.]': 0.15228719061793977, '[ 0.  1. -1.  0.  1.  1. -1.  1. -1.]': 0.18000000000000002, '[ 1.  0. -1.  0.  1. -1.  0.  1.  0.]': 0.0, '[ 0.  1.  0.  0. -1.  0.  1. -1.  1.]': 0.02086508470558269, '[ 0.  1.  0.  0. -1.  0.  0.  0.  1.]': 0.1321795276076662, '[ 0.  0. -1.  0. -1.  1.  0.  1.  1.]': 0.2763295177936884, '[ 0.  1.  1.  0.  0.  0.  0.  0. -1.]': 0.20982850404476686, '[ 0.  1.  1.  0. -1.  0.  1.  0. -1.]': 0.037324800000000005, '[-1.  1.  0.  1.  1.  0.  0.  0. -1.]': 0.21916002816000002, '[-1.  1.  0.  0.  1.  1. -1.  1. -1.]': 0.71125632, '[ 0.  1. -1.  0.  0.  1.  1.  0. -1.]': 0.043527591182685926, '[ 0.  1.  0.  0.  1. -1.  0. -1.  1.]': 0.015163200000000002, '[ 1.  1.  0.  0.  1. -1. -1.  0.  0.]': 0.1615103850430561, '[-1.  0.  1.  0.  1.  1.  0.  0. -1.]': 0.2875029645312, '[-1.  1. -1.  0. -1.  1.  0.  1.  1.]': 0.0, '[ 0.  1.  0. -1.  1.  0.  0.  1. -1.]': 0.8999982759425166, '[ 0.  1. -1. -1.  1.  1.  1.  0. -1.]': 0.11539513619039952, '[-1. -1.  0.  1.  1.  0.  1. -1.  1.]': 0.11384064000000002, '[-1.  0. -1.  0.  1.  1.  1.  0.  0.]': 0.011384064000000004, '[ 0.  1. -1. -1.  1.  0.  0.  1.  0.]': 0.749005056, '[ 0.  1. -1. -1.  1.  1.  0. -1.  1.]': 0.15874465053772877, '[ 0.  1. -1.  0.  1.  0.  0. -1.  1.]': 0.02508332136684545, '[ 0. -1.  1.  0.  1.  0.  1.  0. -1.]': 0.8997079333017074, '[ 0.  1. -1.  0.  1.  1.  0. -1.  0.]': 0.13483160550373122, '[-1.  1. -1. -1.  1.  1.  0.  0.  1.]': 0.019520240025600002, '[ 0.  0. -1. -1.  1.  1.  1.  1. -1.]': 0.22142457055393625, '[ 0.  0.  0. -1.  0.  1.  1.  0.  0.]': 0.12089104230743104, '[ 1.  0.  0.  0. -1. -1.  0.  1.  1.]': 0.025920000000000006, '[ 1.  1.  1.  0.  1. -1.  0. -1. -1.]': 0.887029633073173, '[ 1.  1.  1. -1. -1.  1. -1. -1.  1.]': 0.18000000000000002, '[ 1.  1.  0. -1. -1.  1.  0. -1.  1.]': 0.032400000000000005, '[ 1. -1.  0.  1.  0. -1.  1.  0.  0.]': 0.53136, '[ 1.  0.  1.  1.  0.  0. -1.  0. -1.]': 0.039591717861768974, '[ 1.  1.  0.  1.  1. -1. -1.  0. -1.]': 0.0, '[ 1.  1.  0.  0. -1. -1.  1. -1.  1.]': 0.029859840000000006, '[ 0.  1. -1. -1. -1.  1.  0.  1.  1.]': 0.032400000000000005, '[ 1.  1.  0.  1. -1. -1.  0. -1.  1.]': 0.10891584000000001, '[ 1.  0.  0.  1. -1. -1.  0.  0.  1.]': 0.4697220285264633, '[-1.  0. -1.  1.  0.  1.  1. -1.  1.]': 0.020409610537728738, '[-1.  0. -1.  1.  0.  1.  0.  0.  1.]': 0.0010497600000000003, '[ 0.  0. -1.  1.  0.  0.  1. -1.  1.]': 0.03460195979661647, '[ 1.  0.  0.  0.  1. -1.  0. -1.  1.]': 0.8972799169058671, '[ 1.  1. -1. -1.  1.  1.  0.  0. -1.]': 0.2159893532621252, '[ 1.  0.  1.  0.  0. -1.  0. -1.  1.]': 0.13637484793272542, '[ 0. -1. -1.  1.  0.  1.  1.  1. -1.]': 0.7330696105304275, '[-1.  1.  0.  0.  1. -1.  0.  1.  0.]': 0.71125632, '[ 1.  1.  0. -1.  0. -1.  0.  1.  0.]': 0.10785672806400001, '[ 1. -1.  1. -1.  0.  0.  1.  0.  0.]': 0.014528470287164839, '[-1.  1.  0. -1.  1.  1.  1.  0. -1.]': 0.46816085256630063, '[ 1. -1.  0.  0.  1. -1.  1.  1. -1.]': 0.009355799416327375, '[ 0.  1.  1. -1.  1.  0.  0.  0. -1.]': 0.25261632, '[ 1. -1.  1.  0. -1.  1.  0.  0.  0.]': 0.048755376559588046, '[ 1.  0.  0.  0.  0.  0.  1.  0. -1.]': 0.7559405367787766, '[ 1.  0.  1.  0. -1. -1. -1.  1.  1.]': 0.018252350977763582, '[ 1. -1.  1.  0. -1.  0.  1.  1. -1.]': 0.11736790060091498, '[ 1. -1.  1.  0. -1.  0.  0.  1.  0.]': 0.06975347152069858, '[-1. -1.  0.  0. -1.  1.  1.  1.  1.]': 0.324, '[ 1.  1.  0.  0.  1. -1.  0. -1.  0.]': 0.35281463070299635, '[-1.  1.  0. -1.  1.  1.  0.  1. -1.]': 0.8837870413414661, '[ 1.  1.  0.  0. -1. -1.  1.  1. -1.]': 0.0, '[ 1.  0.  0.  0. -1. -1.  1.  1.  0.]': 0.6143241165019299, '[ 1.  0.  0. -1. -1.  0.  1.  1.  0.]': 0.017709775739834267, '[ 0.  1.  1.  1. -1.  0.  0.  0. -1.]': 0.021088512000000007, '[ 0.  1.  1.  1.  0.  0. -1.  0. -1.]': 0.0, '[-1.  1.  0.  1.  0. -1.  1. -1.  1.]': 0.02644209100691866, '[-1.  1.  0.  0.  0.  0.  1. -1.  1.]': 0.0023044704768000004, '[ 0.  1.  1.  0.  0.  0. -1.  1. -1.]': 0.12571200000000002, '[-1.  0.  0.  0. -1.  1.  0.  1.  1.]': 0.07651584000000002, '[ 0.  1.  1.  0. -1. -1.  1. -1.  1.]': 0.0, '[-1.  1.  0.  0.  0.  0.  0.  1.  0.]': 0.3346643864168474, '[ 1.  1.  1. -1. -1.  0.  0.  0.  0.]': 0.887029633073173, '[ 1.  1. -1.  0.  1.  0.  0. -1.  0.]': 0.035759231998187264, '[-1. -1.  0.  1.  1.  0. -1.  1.  1.]': 0.013289518596096003, '[ 0.  1. -1.  0.  1. -1. -1.  1.  1.]': 0.71125632, '[ 0.  1. -1.  0.  0. -1.  0.  1.  1.]': 0.15394613760000003, '[ 0.  1. -1.  0.  0.  0.  0.  1.  0.]': 0.06898900400316732, '[ 0.  1. -1.  0.  1.  0.  1. -1.  0.]': 0.050513323549524876, '[ 1.  0.  0. -1.  0.  1.  1.  0. -1.]': 0.02184662405202826, '[ 0.  1.  0.  0. -1.  1. -1.  0.  1.]': 0.05832000000000001, '[ 0.  0.  1.  0. -1.  0.  1.  0.  0.]': 0.0795879357615728, '[-1. -1.  1.  0. -1.  0.  1.  1.  1.]': 0.53136, '[ 0. -1.  1.  0. -1.  0.  1.  0.  1.]': 0.10094943640780801, '[ 0.  1.  0.  1.  0. -1.  0. -1.  1.]': 0.15711268749697654, '[ 0.  1.  0.  1.  0. -1.  0.  0.  0.]': 0.0049878548582400015, '[ 0.  1. -1.  1.  0. -1.  0.  1.  0.]': 0.0, '[ 1.  0.  1. -1.  1.  0. -1. -1.  1.]': 0.18000000000000002, '[ 1. -1.  1.  0.  1. -1.  1.  0. -1.]': 0.8999042955843034, '[ 1.  0. -1.  1.  1. -1. -1.  1.  0.]': 0.0, '[ 1.  1.  1.  0.  0.  0. -1. -1.  0.]': 0.749005056, '[ 1.  0.  0.  0.  0.  0. -1.  1.  0.]': 0.01825881847315014, '[ 0.  0. -1.  0.  1. -1.  0.  1.  1.]': 0.3228232319559402, '[ 1. -1.  0. -1.  1.  1.  0.  1. -1.]': 0.08099138577569354, '[ 0. -1.  0.  0.  0.  1.  0.  1.  0.]': 0.03202382773099673, '[ 0.  1. -1.  1.  1.  1.  0. -1. -1.]': 0.8982591468197549, '[ 0.  1.  0.  1.  1. -1.  0.  0. -1.]': 0.20769881137005525, '[ 0.  0. -1.  1.  1.  0.  0.  0.  0.]': 0.1313308334603235, '[ 0.  0. -1.  0.  1.  0.  0.  1.  0.]': 0.15126551347754663, '[ 0.  1.  0.  0.  1. -1. -1.  1.  0.]': 0.6640704000000001, '[ 1. -1. -1.  0.  1.  1.  0.  1. -1.]': 0.131465139049275, '[ 0. -1.  1.  1.  1.  0. -1.  1. -1.]': 0.15473165648879816, '[-1.  0.  1. -1.  1.  1.  1.  0. -1.]': 0.80336323584, '[ 0. -1.  0.  1.  0.  1.  0.  1. -1.]': 0.11755066418847562, '[ 0. -1.  0.  1.  0.  1.  0.  0.  0.]': 0.01734855653522976, '[-1.  1.  0. -1.  1.  0.  1. -1.  1.]': 0.13946113241064684, '[-1.  1.  0. -1.  1.  0.  0.  0.  1.]': 0.0019604851200000005, '[-1. -1.  0.  0.  0.  0.  1.  1.  1.]': 0.43920000000000003, '[ 1. -1. -1.  0.  1.  0.  1.  1. -1.]': 0.0008906044184934538, '[ 0.  1. -1.  1. -1.  0.  1. -1.  1.]': 0.10100370662787277, '[ 0.  0.  0.  0.  1.  1. -1.  1. -1.]': 0.6774483426996701, '[ 0.  0. -1.  0.  1.  1.  0.  1. -1.]': 0.6153819495916355, '[ 1.  1. -1.  0.  0.  1. -1.  1. -1.]': 0.0, '[ 0.  1.  0.  0. -1.  1.  0.  1. -1.]': 0.010494483765570294, '[ 0. -1.  1.  1.  0.  0.  0.  0.  0.]': 0.06856831638317373, '[ 0.  0. -1. -1. -1.  1.  1.  1.  1.]': 0.6050880000000001, '[ 0.  0. -1. -1.  0.  1.  1.  0.  1.]': 0.20616768000000002, '[ 0.  0.  0.  1.  0. -1. -1.  1.  1.]': 0.037110182400000004, '[ 1.  0. -1.  1.  0.  0.  1. -1.  0.]': 0.8916989651668307, '[ 1.  0.  0. -1.  1. -1.  0.  1.  0.]': 0.11856139848846758, '[ 1.  0.  0.  0.  1. -1.  1.  0. -1.]': 0.16168604520979352, '[-1.  1. -1. -1.  1.  1.  1.  0.  0.]': 0.1416208870365491, '[-1.  0.  0. -1.  1.  0.  0.  1.  1.]': 0.013271040000000003, '[ 1.  1. -1.  0.  1.  0. -1.  1. -1.]': 0.43920000000000003, '[ 1.  1. -1.  0.  1.  0. -1.  0.  0.]': 0.032400000000000005, '[ 0. -1.  0.  1.  0.  1.  0. -1.  1.]': 0.05832000000000001, '[ 1.  1. -1.  0.  1. -1.  1. -1.  0.]': 0.0, '[ 1.  0. -1.  0.  1. -1.  1.  0.  0.]': 0.0, '[-1. -1.  0. -1.  1.  1.  0.  1.  1.]': 0.0, '[-1.  0.  0. -1.  1.  1.  0.  1.  0.]': 0.0, '[ 1. -1.  0.  1.  1.  1. -1.  0. -1.]': 0.8946873377067716, '[ 0.  0.  1. -1.  1. -1.  0.  1.  0.]': 0.0861846466434201, '[-1.  0. -1.  0.  1.  0.  0.  1.  1.]': 0.1630810585532267, '[ 0. -1.  0.  1.  1.  0.  0.  0.  0.]': 0.12708444318022882, '[-1.  0.  1.  0.  0.  1.  0. -1.  1.]': 0.53136, '[ 0.  1.  1. -1. -1.  0. -1.  1.  1.]': 0.0, '[ 0.  1.  1. -1. -1.  0.  0.  1.  0.]': 0.0, '[-1.  0.  0.  1. -1.  1. -1.  1.  1.]': 0.05832000000000001, '[-1.  0.  0.  1. -1.  1.  0.  0.  1.]': 0.014230080000000004, '[-1.  0.  1.  1.  1.  0.  1. -1. -1.]': 0.6640704000000001, '[-1.  0.  1.  1.  1.  0.  0.  0. -1.]': 0.15204672000000002, '[-1.  0.  1.  0.  1.  0.  0.  0.  0.]': 0.314894242044483, '[ 0.  0.  1.  1. -1.  1. -1.  0.  0.]': 0.00662048807095601, '[-1.  1.  1.  1. -1.  0.  0.  0.  0.]': 0.0, '[-1.  1.  1.  0. -1.  0.  1. -1.  1.]': 0.11068744447403872, '[-1.  1.  1.  0. -1.  0.  0.  0.  1.]': 0.07081858793289794, '[ 0.  1.  1. -1. -1.  1.  0.  1. -1.]': 0.04230689097090862, '[ 0.  1.  1. -1. -1.  1.  0.  0.  0.]': 0.11462897854708953, '[ 0.  0.  1.  0.  1. -1.  0.  1. -1.]': 0.3790021838321202, '[ 0.  1. -1.  0.  0.  1.  0. -1.  1.]': 0.010142354705933797, '[ 0.  1. -1.  0.  0.  0.  0.  0.  1.]': 0.014147776557730519, '[-1.  0.  1.  1. -1.  0.  1. -1.  1.]': 0.07395876218125645, '[-1.  0.  1.  1. -1.  0.  0.  0.  1.]': 0.12341087160199075, '[ 0.  1.  1. -1. -1.  0.  1. -1.  1.]': 0.0, '[ 1. -1.  1. -1.  1. -1.  0.  1.  0.]': 0.22195358208000004, '[ 1.  0.  1.  0. -1.  0.  1. -1.  0.]': 0.1276123218673529, '[ 0.  1.  1. -1.  0.  0.  0.  0.  0.]': 0.19057848625152002, '[-1.  1.  1.  0.  0.  0.  0.  1. -1.]': 0.07302927237120001, '[ 0.  0.  1.  0.  0.  0.  0.  1. -1.]': 0.07130393016462686, '[ 1.  1.  1.  0. -1. -1.  0. -1.  1.]': 0.53136, '[ 1. -1.  1.  0.  0. -1. -1.  1.  1.]': 0.009564480000000002, '[ 0.  1.  1.  0.  0. -1.  0.  0.  0.]': 0.24821097505564266, '[ 0.  0.  0. -1.  1.  0.  1.  0.  0.]': 0.38941842085703315, '[ 1.  1. -1.  1.  0. -1.  0. -1.  1.]': 0.05832000000000001, '[ 0.  1. -1.  1.  0. -1.  0.  0.  1.]': 0.02656622621907026, '[ 0. -1.  0.  1.  1.  0.  0.  1. -1.]': 0.1780095582980527, '[ 1.  0. -1.  0.  1.  0.  0. -1.  1.]': 0.8896237064585384, '[-1.  0. -1.  1.  1.  0.  0.  1.  0.]': 0.139903200319346, '[-1.  0.  1.  1.  0.  0.  0. -1.  1.]': 0.00646378551897293, '[-1.  0.  0. -1.  1. -1.  1.  1.  1.]': 0.18000000000000002, '[ 1. -1.  1.  1.  0. -1. -1.  0.  1.]': 0.4991583746565735, '[ 1. -1.  1.  1.  0. -1.  0.  0.  0.]': 0.08959310032268458, '[ 0.  0.  0. -1.  1.  1. -1.  0.  1.]': 0.1280261376, '[-1.  1.  1. -1. -1.  1.  1. -1.  1.]': 0.6050880000000001, '[-1. -1.  1.  1.  1. -1. -1.  1.  1.]': 0.0898607317455804, '[ 0. -1.  0.  0. -1.  0.  1.  1.  1.]': 0.43920000000000003, '[ 1.  0. -1.  1.  0.  0.  1.  0. -1.]': 0.8999998815236719, '[ 0.  1.  1.  0.  0.  0.  0. -1.  0.]': 0.4617471369470652, '[-1.  0.  1. -1. -1.  0.  1.  1.  1.]': 0.43920000000000003, '[ 0.  0.  1. -1. -1.  0.  1.  0.  1.]': 0.10497600000000001, '[ 0.  0.  0.  0. -1. -1.  1.  1.  1.]': 0.43920000000000003, '[ 0.  0.  0.  0.  0. -1.  1.  1.  0.]': 0.1563988856827051, '[ 1.  1.  0. -1. -1.  0. -1.  1.  1.]': 0.0, '[ 1.  0.  0.  0. -1.  0. -1.  1.  1.]': 0.0, '[ 0.  1.  1.  1. -1. -1.  0.  1. -1.]': 0.34570533998592, '[-1.  1. -1.  1. -1.  0.  1.  0.  1.]': 0.0700389176723926, '[-1.  1.  1.  0.  0.  1.  1. -1. -1.]': 0.14808430596096, '[ 0.  1.  1.  0.  0.  1.  0. -1. -1.]': 0.017059312046702597, '[-1.  1.  1.  0. -1.  1.  0.  0.  0.]': 0.010642940274288078, '[-1.  0.  1.  0.  0.  1.  0.  0.  0.]': 0.110484084768768, '[ 0.  0.  1. -1.  0.  0.  0.  0.  1.]': 0.09386800540953948, '[ 0.  1.  1.  0. -1.  1. -1.  1. -1.]': 0.11303302196227809, '[ 0.  0.  1.  0. -1.  1.  0.  1. -1.]': 0.01817659932856383, '[ 0.  1.  1.  0.  0.  1. -1.  0. -1.]': 0.0, '[-1.  1.  1.  1.  0.  1. -1.  0. -1.]': 0.0, '[ 0. -1. -1.  0.  0.  1.  1.  0.  1.]': 0.011384064000000004, '[ 0.  0. -1.  0.  0.  1.  1.  0.  0.]': 0.03140147135591925, '[ 1.  1.  1. -1.  0.  0.  1. -1. -1.]': 0.18000000000000002, '[ 1.  0.  1. -1.  0.  0.  1.  0. -1.]': 0.727070749055215, '[ 0.  0.  1.  1.  0.  0.  0. -1.  0.]': 0.05504547818511678, '[-1.  0.  1.  1.  1. -1. -1.  0.  1.]': 0.03943045824187513, '[-1.  0.  1.  0.  1. -1.  0.  0.  1.]': 0.0011384064000000004, '[ 0.  0.  1.  0.  0. -1.  1.  0.  0.]': 0.06378705963600068, '[ 1. -1.  1.  0.  0.  0.  0.  1. -1.]': 0.03725911565188248, '[ 0.  0.  1.  1. -1. -1.  1.  1. -1.]': 0.22295589550848738, '[ 0.  0.  1.  0. -1.  0.  1.  1. -1.]': 0.010497600000000003, '[ 0.  0.  1.  0.  1. -1. -1.  0.  1.]': 0.003098891520000001, '[-1. -1.  1.  0.  0.  1.  1. -1.  1.]': 0.53136, '[ 0.  1. -1.  1.  0.  1. -1.  1. -1.]': 0.0, '[ 0.  1. -1.  1.  0.  1. -1.  0.  0.]': 0.0, '[ 0.  1. -1.  1.  1.  0.  0. -1.  0.]': 0.17653577103526172, '[ 1. -1.  0.  0.  1.  0. -1.  1.  0.]': 0.04137699730946409, '[ 1.  0.  1. -1. -1.  0. -1.  1.  1.]': 0.118467444768768, '[ 1. -1.  1.  1. -1.  0. -1.  0.  1.]': 0.0, '[-1.  0.  1.  0. -1.  0.  0.  1.  1.]': 0.223150979579904, '[-1.  1.  1.  0.  0.  0.  0. -1.  1.]': 0.34838493056911635, '[ 1. -1.  1.  0. -1.  0. -1.  1.  1.]': 0.0525727542010393, '[ 0. -1.  1.  0.  1. -1.  1. -1.  1.]': 0.18000000000000002, '[ 0. -1.  1.  0.  0. -1.  1.  0.  1.]': 0.032400000000000005, '[ 1.  1.  0. -1.  1. -1.  1.  0. -1.]': 0.2747675764903772, '[ 1.  1.  1. -1.  1. -1.  0.  0. -1.]': 0.53136, '[ 1.  0. -1.  0.  0.  1.  0. -1.  1.]': 0.039337813690232946, '[ 1. -1.  1.  0. -1.  1.  0.  1. -1.]': 0.08097336086981358, '[ 0.  0.  1.  0. -1. -1.  0.  1.  1.]': 0.00024296801792163844, '[ 0.  0.  0. -1.  1.  1.  0. -1.  1.]': 0.1291436370967912, '[-1.  0.  1.  0. -1.  0.  1.  0.  1.]': 0.09505198894786233, '[-1.  1.  1.  0. -1.  1.  0. -1.  1.]': 0.8837870413414661, '[-1. -1.  1.  1.  1.  0. -1.  0.  1.]': 0.04517858732241716, '[ 0.  0.  0.  0. -1.  0.  1.  1.  0.]': 0.18520758286433114, '[ 1.  0.  1. -1.  1.  1.  0. -1. -1.]': 0.0, '[-1.  0.  1.  1.  0. -1.  1. -1.  1.]': 0.01583520843018299, '[ 1. -1.  1.  0. -1.  0.  0.  0.  1.]': 0.032160355846436936, '[ 0. -1.  1.  1. -1.  0.  0.  0.  1.]': 0.0, '[ 0.  0.  1.  0. -1. -1.  1.  0.  1.]': 0.0690482644581393, '[ 0.  1. -1.  1.  0. -1. -1.  1.  1.]': 0.0, '[-1.  1.  0. -1.  1.  0.  0.  1.  0.]': 0.8837870413414661, '[ 1.  1. -1.  0. -1.  0.  1.  1. -1.]': 0.0, '[ 1.  1. -1.  0. -1.  0.  0.  1.  0.]': 0.013155249839304935, '[ 0.  1. -1.  0.  0. -1.  1.  0.  1.]': 0.024270451200000005, '[ 0.  1.  0.  0.  0. -1.  1.  0.  0.]': 0.02724830187888038, '[-1.  1.  1.  1. -1. -1. -1.  1.  1.]': 0.0860417581400064, '[-1.  1.  1.  0. -1.  0. -1.  1.  1.]': 0.013280371200000004, '[ 0.  0.  1.  0.  0. -1.  0.  1.  0.]': 0.023221692735133193, '[ 0.  0. -1.  0.  1.  1.  0.  0.  0.]': 0.4995604865240273, '[ 0.  1.  0.  1.  0.  0. -1. -1.  1.]': 0.11276062053969628, '[ 0.  1.  0.  0.  0.  0.  0. -1.  1.]': 0.04988183182959992, '[ 0.  0. -1.  1.  1.  0.  1. -1.  0.]': 0.13288368128550193, '[-1.  1. -1.  1. -1. -1.  1.  1.  1.]': 0.18000000000000002, '[-1.  0. -1.  1.  0.  0.  1.  0.  1.]': 0.12962759048334332, '[ 0.  0. -1.  0.  0.  0.  1.  1.  0.]': 0.12130312682637176, '[ 0.  0.  1.  0.  1.  0.  0. -1.  0.]': 0.21990175170179363, '[ 0. -1. -1.  1.  0.  1.  1.  0.  0.]': 0.019167039865247697, '[ 0. -1. -1.  0.  1.  0.  0.  1.  1.]': 0.1958241510819938, '[ 1.  1.  0. -1.  1.  0. -1.  0.  0.]': 0.2837101412817866, '[ 0.  0. -1.  1.  0.  1.  1.  0. -1.]': 0.15487516465201154, '[ 0. -1.  1.  0.  0.  0.  1.  0.  0.]': 0.004914439463526824, '[ 0.  1. -1.  1.  0. -1.  1.  0.  0.]': 0.0038728585728000013, '[ 0.  0. -1.  1.  0. -1.  1.  0.  1.]': 0.475923137489482, '[ 1.  0. -1.  1.  0.  0.  0.  0.  0.]': 0.5194231695833729, '[-1.  1.  1. -1. -1.  0.  0.  1.  1.]': 0.0, '[ 1.  0.  0.  1.  0.  1. -1.  0. -1.]': 0.0, '[ 0.  0.  1.  0. -1.  0. -1.  1.  1.]': 0.056245053885760773, '[ 1.  1.  1.  1. -1. -1.  0.  0. -1.]': 0.18000000000000002, '[ 1.  1.  0.  1.  0. -1.  0.  0. -1.]': 0.11636213760000003, '[ 0. -1. -1.  1. -1.  1.  1.  0.  1.]': 0.0, '[ 0.  0.  1.  1.  0. -1.  0.  0.  0.]': 0.10619322727506564, '[ 0.  0. -1.  0.  0.  0.  1.  0.  1.]': 0.5069170740290818, '[ 1. -1.  1.  0.  1.  0. -1.  0.  0.]': 0.014531677752317312, '[ 1.  0.  1.  0. -1.  1. -1.  1. -1.]': 0.1571604730896727, '[ 0.  0. -1.  1.  0. -1.  1.  1.  0.]': 0.0, '[ 1.  1.  0.  1.  0.  0.  0. -1. -1.]': 0.08628538245120002, '[ 1. -1.  1.  0. -1.  1. -1.  0.  1.]': 0.53136, '[ 1.  0. -1.  0.  1.  1.  1. -1. -1.]': 0.13921003260832787, '[-1.  0. -1.  1.  0. -1.  1.  1.  1.]': 0.43920000000000003, '[ 1.  0.  1.  1.  0. -1. -1. -1.  1.]': 0.2887757189962272, '[ 1.  0.  0.  1.  0. -1.  0. -1.  1.]': 0.11777389467763646, '[ 1.  1.  1.  1.  0. -1.  0. -1. -1.]': 0.18000000000000002, '[ 1.  1.  0.  1.  0. -1.  0. -1.  0.]': 0.032400000000000005, '[ 0.  1.  1.  0. -1.  1.  0.  0. -1.]': 0.007615240374763552, '[ 0. -1. -1.  1.  0. -1.  1.  1.  1.]': 0.18000000000000002, '[ 1.  1. -1.  0.  0. -1.  0.  0.  1.]': 0.04093224192000001, '[ 1.  1. -1.  0. -1.  1.  0.  0.  0.]': 0.019711247370879953, '[-1.  1.  1.  1.  0.  0. -1.  1. -1.]': 0.0, '[-1.  1.  1.  1. -1.  1. -1. -1.  1.]': 0.53136, '[-1.  1.  1.  1. -1.  0. -1.  0.  1.]': 0.13161893824512003, '[ 1.  1. -1.  1. -1.  1.  0.  0. -1.]': 0.776845991629473, '[ 1.  0.  0. -1.  1.  0.  1.  0. -1.]': 0.12831633209800897, '[ 1.  1.  0. -1. -1.  0.  1.  1. -1.]': 0.010272372078721888, '[ 1. -1.  1.  1.  1.  0.  0. -1. -1.]': 0.0, '[-1.  1.  1.  0. -1.  0.  1.  0.  0.]': 0.021259675012190768, '[ 1.  0. -1.  1. -1.  1.  1.  0. -1.]': 0.324, '[ 1.  0. -1.  0. -1.  1.  1.  0.  0.]': 0.11251059134881401, '[ 1.  0.  0.  1.  0. -1.  1. -1.  0.]': 0.53136, '[ 1.  0.  0.  0. -1. -1.  1.  0.  1.]': 0.020736000000000004, '[ 1. -1.  0.  0.  1.  0.  1.  0. -1.]': 0.6637018104256427, '[ 1. -1.  1.  0. -1. -1.  0.  1.  1.]': 0.0, '[-1.  0.  1. -1.  0.  1.  1.  1. -1.]': 0.10891584000000001, '[-1.  0.  1.  0.  0.  0.  1.  1. -1.]': 0.019604851200000006, '[-1.  0.  0.  0.  0.  0.  1.  1.  0.]': 0.018628145930525742, '[-1.  1.  1.  0. -1.  0.  0.  1.  0.]': 7.827577896960005e-05, '[ 0.  0.  1. -1.  1.  0.  1.  0. -1.]': 0.8998504618504741, '[ 1. -1. -1.  1.  0.  0.  1.  0.  0.]': 0.71125632, '[ 1.  1.  1. -1.  1.  0.  0. -1. -1.]': 0.18000000000000002, '[-1.  0. -1.  1. -1.  1.  1.  0.  1.]': 0.0, '[-1.  0.  0.  0.  1.  0.  1.  1. -1.]': 0.08780581865403189, '[ 1. -1. -1.  1.  1.  0.  1.  0. -1.]': 0.8837870413414661, '[ 0.  1.  0.  0. -1.  0.  0.  1.  0.]': 0.06491615120968254, '[ 0. -1.  0.  1.  1.  0.  1.  0. -1.]': 0.6959188619540693, '[ 0. -1.  1.  0. -1.  0.  0.  1.  1.]': 0.5976560111374322, '[ 0. -1.  1.  0. -1.  1.  1.  0.  0.]': 0.0, '[-1.  1.  1.  0. -1. -1.  0.  1.  1.]': 0.016567374322630658, '[-1.  1.  1. -1. -1.  0.  1.  0.  1.]': 0.10056960000000001, '[ 0.  1.  0. -1.  0.  0.  1.  0.  0.]': 0.09014298186390715, '[-1.  1.  1.  1. -1. -1.  0.  0.  1.]': 0.07930312643160786, '[ 0. -1.  1.  0. -1. -1.  1.  1.  1.]': 0.85052197675008, '[ 0.  1.  1.  0. -1.  1. -1.  0.  0.]': 0.3458169514036724, '[ 1.  0.  1.  1. -1.  0. -1.  0.  0.]': 0.24383306455316794, '[ 1. -1.  1.  1.  0. -1.  0. -1.  1.]': 0.0, '[-1.  1.  1.  1. -1.  0.  0. -1.  1.]': 0.039408464535235915, '[-1.  0.  1.  1.  0.  0.  0.  0.  0.]': 0.029467174068751597, '[ 0. -1. -1.  1. -1.  1.  1.  1.  0.]': 0.13482091008000002, '[-1.  1. -1.  1.  1. -1.  1.  0.  0.]': 0.04075538503070974, '[ 0.  0. -1.  1.  1. -1.  1.  0.  0.]': 0.008084371201836495, '[ 0.  0. -1.  0.  1.  0.  1.  0.  0.]': 0.164265953575584, '[-1.  0.  1.  0. -1.  1.  0.  0.  1.]': 0.8933591721334645, '[ 0.  1.  0.  1. -1.  0.  0.  1. -1.]': 0.029187456178513288, '[ 0.  1. -1.  0. -1.  1.  0.  1.  0.]': 0.007394976495988729, '[-1.  1.  1.  0.  1.  0. -1. -1.  1.]': 0.016116596490240005, '[-1.  1.  0.  0.  1.  0. -1.  0.  1.]': 0.0021515880960000008, '[ 1.  1.  1.  0. -1.  0.  0. -1.  0.]': 0.8996349166271342, '[ 1. -1.  1. -1. -1.  1.  1.  0.  0.]': 0.02908340295767142, '[-1.  1.  1. -1. -1.  1.  0.  0.  1.]': 0.80336323584, '[ 0.  1. -1.  1.  0. -1.  1. -1.  1.]': 0.4086455298048, '[ 1.  0.  1. -1.  1. -1.  0. -1.  1.]': 0.53136, '[-1.  1. -1.  1.  1.  0.  1.  0. -1.]': 0.41121203352424474, '[-1.  0.  0.  1.  1.  0.  1.  0. -1.]': 0.10573046180671641, '[-1.  0.  0.  0.  1.  0.  1.  0.  0.]': 0.10873286298438806, '[ 0.  0.  1.  0. -1.  1.  1.  0. -1.]': 0.04471907878260572, '[-1. -1.  0.  0.  1.  1.  0.  1.  0.]': 0.0, '[ 1.  0. -1.  1.  0. -1.  1. -1.  1.]': 0.8226905886720001, '[ 1.  0. -1.  1. -1. -1.  1.  0.  1.]': 0.7792040448, '[ 1.  1.  1.  0.  0. -1.  0. -1.  0.]': 0.18000000000000002, '[ 1.  0.  1.  0.  1. -1.  0. -1.  0.]': 0.20716181373002954, '[ 1. -1.  1.  0.  1.  0.  0. -1.  0.]': 0.14966269938775012, '[-1.  0.  1.  0.  0.  0. -1.  1.  1.]': 0.0, '[ 0.  0.  0. -1.  0.  1. -1.  1.  1.]': 0.09988198761775105, '[ 0.  0.  0. -1.  0.  0.  0.  1.  1.]': 0.027321238818747193, '[ 0.  1. -1.  1. -1.  1.  0.  1. -1.]': 0.0, '[-1.  1.  1.  0. -1.  1.  1. -1.  0.]': 0.0, '[ 0.  1.  1.  0. -1.  0.  1. -1.  0.]': 0.10321583816703005, '[ 1. -1.  1.  1.  0.  0.  0. -1.  0.]': 0.0, '[ 0.  0. -1.  0.  0. -1.  1.  1.  1.]': 0.7792040448, '[ 1. -1.  1.  0.  1. -1. -1.  0.  1.]': 0.18000000000000002, '[ 1.  0.  1.  0.  0. -1. -1.  0.  1.]': 0.08424000000000001, '[ 1. -1. -1.  1.  1. -1.  0.  0.  1.]': 0.6050880000000001, '[ 0.  1.  0.  1. -1. -1. -1.  1.  1.]': 0.0, '[ 0.  1.  0.  0. -1.  0. -1.  1.  1.]': 0.0, '[ 1. -1.  0. -1.  1.  0.  0.  0.  1.]': 0.43920000000000003, '[-1.  1.  0.  1.  1.  1. -1.  0. -1.]': 0.53136, '[-1.  1.  0.  1.  1.  0. -1.  0.  0.]': 0.08424000000000001, '[ 0.  0.  0.  1.  1. -1. -1.  1.  0.]': 0.0987479812649007, '[ 1.  0.  0.  1. -1.  1. -1.  0.  0.]': 0.002815771175773432, '[-1.  0.  0.  0.  1.  0. -1.  1.  1.]': 0.020475274493952002, '[ 0.  1.  0.  1.  1.  0. -1. -1.  0.]': 0.0, '[ 1. -1.  0. -1.  1.  1.  0. -1.  1.]': 0.18000000000000002, '[ 0. -1.  0. -1.  1.  1.  0.  0.  1.]': 0.032400000000000005, '[ 1.  0. -1.  1. -1.  0.  1. -1.  1.]': 0.887029633073173, '[ 1.  0. -1.  1. -1.  0.  0.  0.  1.]': 0.18675944427482555, '[ 0.  1.  1.  1.  1. -1.  0. -1. -1.]': 0.0, '[-1.  0.  0.  1.  1.  0.  0.  0.  0.]': 0.4815757388342058, '[-1.  0. -1.  1.  0.  1.  1.  0.  0.]': 0.0, '[ 0.  0. -1.  1.  0.  0.  0.  1.  0.]': 0.21992234735430136, '[ 1.  1.  1.  0. -1.  0. -1.  0.  0.]': 0.8957498701654173, '[-1.  1.  1.  1.  1. -1.  0.  0. -1.]': 0.7805494215067945, '[ 0. -1. -1.  1.  1.  1.  0.  1. -1.]': 0.8972799169058671, '[ 0. -1. -1.  0.  0.  0.  1.  1.  1.]': 0.6640704000000001, '[ 0.  1.  1.  1.  0.  0.  0. -1. -1.]': 0.0, '[ 0.  1.  0.  1.  0.  0.  0. -1.  0.]': 0.20692451346911617, '[ 1.  0. -1.  1.  0. -1.  0.  0.  1.]': 0.35202808811520003, '[ 1. -1. -1.  1. -1.  0.  1.  0.  1.]': 0.324, '[ 0.  1.  0. -1. -1.  1.  0.  1.  0.]': 0.021507895365698106, '[ 1.  0. -1.  1. -1.  0.  1.  0.  0.]': 0.8797338016768327, '[ 1.  0.  0.  0.  1.  0. -1. -1.  1.]': 0.43920000000000003, '[ 1.  1. -1.  1.  0.  0. -1.  0.  0.]': 0.010491553382400003, '[-1.  1.  1.  0. -1.  1. -1.  0.  1.]': 0.71125632, '[ 0.  0.  1.  0.  1. -1. -1.  1.  0.]': 0.042429934172738576, '[ 0.  0.  0.  1.  0.  1.  0.  0. -1.]': 0.19963298433286192, '[ 0. -1.  1.  0. -1.  1.  0.  0.  1.]': 0.80336323584, '[ 1.  0. -1.  1.  0.  1. -1.  1. -1.]': 0.0, '[ 1.  0. -1.  1.  0.  0. -1.  1.  0.]': 0.024237201228047144, '[ 0. -1.  1. -1. -1.  0.  1.  1.  1.]': 0.8226905886720001, '[ 1. -1.  1.  1.  1.  0. -1. -1.  0.]': 0.26655175072972803, '[ 1. -1.  0.  1.  1.  0.  0. -1.  0.]': 0.11646797507297281, '[ 1.  0.  0.  0.  0.  0. -1.  0.  1.]': 0.25608071761157714, '[ 1.  0. -1.  0.  0.  0.  0.  1.  0.]': 0.060886208122561764, '[ 1.  0. -1.  1.  1.  0. -1. -1.  1.]': 0.749005056, '[ 1. -1. -1.  0.  0. -1.  1.  1.  1.]': 0.18000000000000002, '[ 1.  1. -1. -1. -1.  1.  0.  0.  1.]': 0.014773090209103898, '[ 1.  1.  0.  0.  0.  0.  1. -1. -1.]': 0.13121166236498127, '[-1.  1.  1.  0.  0.  1. -1.  1. -1.]': 0.0, '[ 0.  1.  1.  0.  0.  0.  1. -1. -1.]': 0.07905600000000002, '[ 1.  1.  1.  0.  0. -1.  0.  0. -1.]': 0.8381524709376, '[ 0.  0.  0.  1. -1.  0.  0.  1.  0.]': 0.10284606170674526, '[-1.  1.  0.  0.  0.  1.  0.  1. -1.]': 0.3504458483712001, '[-1.  1.  1.  0.  0.  1.  0.  0. -1.]': 0.0, '[ 1.  0. -1.  0.  0.  0.  1.  0.  0.]': 0.06972122308925911, '[ 0.  1.  0. -1.  1.  1. -1.  1. -1.]': 0.8998130773130927, '[-1.  1.  1.  0.  0.  0.  1.  0. -1.]': 0.08976430596096, '[-1.  1.  1.  0.  1.  0.  1. -1. -1.]': 0.85052197675008, '[-1.  1.  1.  0.  1.  0.  0.  0. -1.]': 0.44355522341540243, '[ 1. -1. -1.  0.  0.  1.  1.  1. -1.]': 0.26028968841216, '[ 1.  0. -1.  0.  0.  0.  1.  1. -1.]': 0.045449988021466145, '[-1.  1.  1.  1.  0.  0.  0.  0. -1.]': 0.0, '[-1.  1.  1. -1.  1.  0.  0.  1. -1.]': 0.53136, '[ 1.  1. -1. -1.  0.  1.  1.  0. -1.]': 0.06741042702542632, '[ 1.  1.  0.  1. -1. -1. -1.  0.  1.]': 0.10291497662977514, '[ 1.  0.  0.  0.  0.  0.  0. -1.  1.]': 0.10837664745475278, '[ 0.  1.  1.  0.  0. -1. -1.  0.  1.]': 0.014435030476800002, '[-1.  1.  1.  0.  0. -1.  1. -1.  1.]': 0.11366150279828825, '[-1.  1.  0.  0.  0. -1.  1.  0.  1.]': 0.04452599852156138, '[ 0.  0.  1.  1. -1. -1. -1.  1.  1.]': 0.06589380807732288, '[ 1.  0.  1.  1. -1. -1. -1.  0.  1.]': 0.7398264529134779, '[-1.  0.  1.  0.  0. -1.  0.  1.  1.]': 0.0021515880960000008, '[ 0.  1.  1.  1. -1. -1.  0.  0.  0.]': 0.06516012944572748, '[ 0. -1.  0.  1.  1. -1.  1.  0.  0.]': 0.1583520843018299, '[ 0.  0.  0.  1.  0. -1.  1.  0.  0.]': 0.19761494277931815, '[ 0.  0. -1.  1.  0.  1.  0.  1. -1.]': 0.2938970835762719, '[ 0.  1.  0.  1.  0.  1.  0. -1. -1.]': 0.007285800960000003, '[ 0.  1.  1.  1. -1.  0. -1.  1. -1.]': 0.10134533395317114, '[-1. -1.  1.  1.  1.  0.  1.  0. -1.]': 0.18000000000000002, '[-1. -1.  0.  1.  1.  0.  1.  0.  0.]': 0.16421619583653252, '[ 1. -1.  1.  1. -1.  1. -1.  0.  0.]': 0.08083298648009021, '[-1. -1.  0.  1.  1.  1.  0. -1.  1.]': 0.43920000000000003, '[-1. -1.  0.  1.  0.  1.  0.  0.  1.]': 0.06718464, '[ 1.  0.  0.  1.  0.  1.  0. -1. -1.]': 0.0, '[ 0. -1.  1.  0.  0.  0.  0.  1.  0.]': 0.07401220075965735, '[ 0.  0. -1.  1. -1. -1.  1.  1.  1.]': 0.324, '[ 0.  0. -1.  1. -1.  0.  0.  1.  1.]': 0.020736000000000004, '[-1.  0.  1.  1.  0.  1. -1.  1. -1.]': 0.0, '[-1.  0.  1.  1.  0.  0.  0.  1. -1.]': 0.0, '[ 0.  1. -1.  1. -1.  0.  1.  1. -1.]': 0.0, '[ 1. -1.  1.  1. -1.  1.  0.  0. -1.]': 0.03952770404563498, '[ 0. -1.  1. -1.  1.  1.  0.  1. -1.]': 0.12246422166765927, '[-1.  0.  1.  0.  1. -1.  1.  0.  0.]': 0.6640704000000001, '[ 0. -1.  0.  1.  1.  1.  1. -1. -1.]': 0.324, '[ 0.  0. -1. -1.  0.  0.  1.  1.  1.]': 0.80336323584, '[ 0.  1.  1.  1. -1.  0.  0. -1.  0.]': 0.15075955477812783, '[ 0.  0.  1. -1.  1.  0.  1. -1.  0.]': 0.18000000000000002, '[ 0.  0. -1.  0.  1.  1.  0. -1.  1.]': 0.0808292875124736, '[ 0.  1.  0.  1.  0.  1. -1.  0. -1.]': 0.07498137600000002, '[ 1.  1.  1.  1. -1.  0.  0. -1. -1.]': 0.324, '[ 0. -1.  1.  0.  1.  1. -1.  1. -1.]': 0.08897804641683305, '[-1.  1.  1.  1.  0.  1.  0. -1. -1.]': 0.0, '[ 0.  1.  0. -1.  0.  1.  1.  0. -1.]': 0.008596395496162805, '[ 1.  1.  0. -1.  1.  1.  0. -1. -1.]': 0.07586789033234292, '[-1.  0.  1. -1.  1.  0.  1. -1.  1.]': 0.43920000000000003, '[-1.  1.  0.  0.  0.  1.  0.  0.  0.]': 0.030170602849371855, '[ 0.  1.  1.  1. -1. -1.  1.  0. -1.]': 0.0, '[ 0.  1.  1.  0. -1. -1.  1.  0.  0.]': 0.0, '[ 0. -1.  0.  1.  1.  0. -1.  0.  1.]': 0.15295380586776075, '[ 0.  1.  0.  0. -1.  1. -1.  1.  0.]': 0.036622699115778104, '[ 1.  0.  1.  1.  0. -1.  0.  0. -1.]': 0.01460777094934329, '[-1. -1.  1.  1.  1.  1.  0.  0. -1.]': 0.43920000000000003, '[-1.  0. -1.  1.  1.  0.  1.  0.  0.]': 0.04890873032616889, '[ 0.  1.  0. -1.  1.  0. -1.  1.  0.]': 0.8746672520960409, '[ 1.  1. -1.  1.  0.  0. -1. -1.  1.]': 0.05059584000000002, '[ 0.  0.  1. -1. -1.  0.  0.  1.  1.]': 0.0, '[-1.  1.  1.  0.  1. -1. -1.  0.  1.]': 0.0, '[ 0.  1. -1. -1.  1.  1. -1.  1.  0.]': 0.18000000000000002, '[ 0.  1.  0. -1.  1.  1. -1.  0.  0.]': 0.14553686016000003, '[ 1.  1.  0.  0.  0. -1.  1.  0. -1.]': 0.126981930267001, '[ 1.  1. -1.  0. -1.  1.  1.  0. -1.]': 0.27680402553810296, '[-1.  1. -1.  1.  0. -1.  0.  1.  1.]': 0.1280261376, '[ 0.  0.  0.  1. -1.  0. -1.  1.  1.]': 0.002366768009340519, '[ 0.  1.  0.  1. -1. -1.  1.  1. -1.]': 0.0, '[ 0.  1.  0.  0.  0.  0. -1.  1.  0.]': 0.005456736569895822, '[-1.  0. -1.  1. -1.  0.  1.  1.  1.]': 0.8916989651668307, '[ 1. -1.  0.  1.  1. -1.  0. -1.  1.]': 0.18000000000000002, '[-1.  0. -1.  1.  1.  1.  1.  0. -1.]': 0.887029633073173, '[ 0.  1.  1.  0.  1. -1. -1.  0.  0.]': 0.1619997517357224, '[-1.  1.  0.  0. -1.  0.  1.  0.  1.]': 0.009897594882048003, '[ 0.  1. -1.  0.  0.  0.  1.  0.  0.]': 0.0655823649783915, '[ 1.  0. -1. -1.  1.  0.  1.  1. -1.]': 0.0, '[ 1.  0. -1. -1.  1.  0.  1.  0.  0.]': 0.05335838613064967, '[-1.  1. -1.  0.  0.  1.  0.  1.  0.]': 0.05832000000000001, '[ 1. -1. -1.  1.  1.  0. -1.  1.  0.]': 0.6727528909764066, '[ 1.  1. -1.  1.  0. -1.  0.  0.  0.]': 0.0, '[ 1.  0. -1. -1.  0.  0.  1.  1.  0.]': 0.07666049411149824, '[ 1.  0. -1. -1.  0.  0.  1.  0.  1.]': 0.014314823123940536, '[ 1.  0. -1. -1.  1. -1.  1.  0.  1.]': 0.18000000000000002, '[ 1.  0.  1. -1.  1. -1. -1.  0.  1.]': 0.324, '[ 1.  1. -1.  0.  0.  0.  1.  0. -1.]': 0.002965910349625766, '[ 0.  0.  1. -1. -1.  1.  0.  0.  1.]': 0.8982591468197549, '[-1.  0.  1.  0.  1.  0. -1.  1.  0.]': 0.48440775817573173, '[ 0.  0. -1. -1.  1.  1.  1.  0.  0.]': 0.05527460748104025, '[ 0.  0.  1.  0. -1.  1. -1.  1.  0.]': 0.039343924569902405, '[-1.  0.  1.  0. -1.  1.  1.  0.  0.]': 0.032400000000000005, '[ 1. -1. -1. -1.  0.  1.  1.  1.  0.]': 0.016199999552766835, '[-1.  1.  1.  0. -1. -1.  1.  1.  0.]': 0.0, '[ 1.  1. -1.  0. -1.  1.  1. -1.  0.]': 0.2514380709090046, '[-1.  0.  0. -1.  1.  0.  1.  1.  0.]': 0.12414151226873445, '[ 0. -1. -1.  1.  0.  0.  0.  1.  1.]': 0.0, '[-1. -1.  0.  0.  1.  0.  0.  1.  1.]': 0.015105393650162075, '[ 0.  1.  0.  1.  1. -1. -1.  0.  0.]': 0.09798013172160923, '[-1.  0.  0.  1.  1. -1.  1. -1.  1.]': 0.0879194172618587, '[ 1.  1.  0. -1.  0.  1.  0. -1.  0.]': 0.04629640818958426, '[ 0.  1.  0.  0.  1.  0. -1. -1.  1.]': 0.12417006778169429, '[ 1. -1. -1. -1.  1.  1. -1.  1.  1.]': 0.71125632, '[ 0. -1. -1. -1.  1.  1.  0.  1.  1.]': 0.17962560000000002, '[ 0. -1.  0. -1.  1.  1.  0.  1.  0.]': 0.005832000000000001, '[ 0. -1. -1.  0.  1.  1.  0.  0.  1.]': 0.015116544000000004, '[ 0.  1.  1. -1.  1.  1. -1.  0. -1.]': 0.0, '[ 1.  0. -1.  0.  1.  1.  0.  0. -1.]': 0.288344487582332, '[-1. -1.  1.  0. -1.  1.  0.  1.  1.]': 0.18000000000000002, '[ 0. -1.  1.  1. -1.  0. -1.  1.  1.]': 0.053168637632001484, '[ 0. -1.  0.  1. -1.  0.  0.  1.  1.]': 0.0397459641258896, '[-1.  1. -1.  1.  0.  0.  1. -1.  1.]': 0.07732725978825976, '[ 1.  0.  0.  1.  0. -1.  1.  0. -1.]': 0.8999749116616517, '[ 1.  0. -1. -1.  1.  1. -1.  0.  1.]': 0.53136, '[ 1.  1.  1.  0.  0. -1.  1. -1. -1.]': 0.324, '[ 1. -1. -1.  0.  1.  0.  1. -1.  1.]': 0.18000000000000002, '[ 1. -1. -1.  0.  0.  0.  1.  0.  1.]': 0.12156480000000003, '[ 1.  0.  1.  0.  0. -1.  1.  0. -1.]': 0.24811345612800004, '[ 0. -1. -1.  1.  0.  1. -1.  1.  1.]': 0.0, '[-1.  0.  1.  1.  1.  1.  0. -1. -1.]': 0.43920000000000003, '[ 1.  1. -1.  0.  1.  1. -1.  0. -1.]': 0.03358217043444487, '[ 1. -1.  1. -1.  1.  0. -1.  0.  1.]': 0.18000000000000002, '[ 1. -1.  0.  0.  0.  1.  1.  0. -1.]': 0.28667500204499247, '[ 1. -1.  0.  0.  0.  1.  0.  1. -1.]': 0.03625420998165645, '[ 1. -1.  0.  0.  0.  0.  1.  1. -1.]': 0.020075367628800005, '[ 1.  1.  1. -1. -1.  0.  1.  0. -1.]': 0.8965998961323338, '[ 0. -1. -1.  1.  1.  1.  0.  0.  0.]': 0.749005056, '[ 0. -1. -1.  1.  1.  0.  1. -1.  1.]': 0.16533227520000002, '[ 1.  0. -1.  1.  1. -1. -1.  0.  1.]': 0.7792040448, '[ 1.  1.  0.  1. -1.  1. -1.  0. -1.]': 0.0, '[ 0. -1. -1.  1. -1.  0.  1.  1.  1.]': 0.324, '[ 1.  1.  0.  1. -1.  0. -1.  0.  0.]': 0.17375312560913161, '[ 1. -1. -1.  1. -1.  1.  0.  0.  1.]': 0.0, '[ 1. -1. -1.  1.  0.  1.  0.  0.  0.]': 0.0, '[ 1. -1.  0.  1.  1. -1. -1.  0.  1.]': 0.324, '[ 1.  0.  0.  1. -1. -1. -1.  1.  1.]': 0.015309395581501442, '[ 0.  0.  0.  1. -1. -1.  0.  1.  1.]': 0.0027556912046702597, '[ 0.  0.  1.  1.  0. -1.  1.  0. -1.]': 0.4716621105359752, '[ 0.  0.  1.  1.  0. -1. -1.  0.  1.]': 0.17475246505988276, '[ 1.  1. -1.  1.  0.  0.  0. -1.  0.]': 0.13482091008000002, '[ 1.  1.  1.  1. -1.  0. -1. -1.  0.]': 0.18000000000000002, '[ 1.  1. -1. -1.  1.  0.  1.  0. -1.]': 0.02915999990620841, '[ 1.  1.  0. -1.  0. -1.  1. -1.  1.]': 0.0, '[ 1.  1.  0. -1.  0.  0.  0. -1.  1.]': 0.032400000000000005, '[ 1.  1.  0. -1.  1.  0. -1. -1.  1.]': 0.6640704000000001, '[ 1.  1.  0. -1.  0.  0. -1.  0.  1.]': 0.10497600000000001, '[-1.  0.  0.  0. -1.  1.  1.  0.  1.]': 0.09564480000000002, '[ 0. -1.  0.  0.  0.  0.  0.  1.  1.]': 0.2494451195399387, '[ 1. -1. -1.  1.  1.  0. -1.  0.  1.]': 0.43920000000000003, '[ 0.  1.  1.  1. -1.  1.  0. -1. -1.]': 0.0, '[-1.  1. -1.  1.  0. -1.  1.  0.  1.]': 0.02844728525107494, '[ 1.  1.  0.  1.  1. -1.  0. -1. -1.]': 0.0, '[ 1. -1.  0.  1. -1. -1.  1.  0.  1.]': 0.43920000000000003, '[-1.  1.  1.  1. -1.  1. -1.  0.  0.]': 0.0, '[-1.  1.  1.  0. -1. -1.  1.  0.  1.]': 0.06740974828834129, '[ 0.  1.  1.  0. -1. -1.  0.  0.  1.]': 0.0, '[ 0. -1.  1.  1.  0. -1.  1.  1. -1.]': 0.34126753818378247, '[ 1.  0.  1.  0. -1.  1. -1.  0.  0.]': 0.3524255559597734, '[ 1.  0.  1.  1. -1. -1. -1.  1.  0.]': 0.17935324794281823, '[ 1.  0.  1.  0. -1.  0. -1.  1.  0.]': 0.13732700266828043, '[ 0. -1.  0.  0.  0.  0.  1.  1.  0.]': 0.010801438430674954, '[ 1.  1. -1.  1. -1.  0.  0.  0.  0.]': 0.0, '[ 1.  0. -1.  0. -1.  0.  1.  1.  0.]': 0.29481159168000004, '[-1.  1.  0.  1.  0.  0.  0.  1. -1.]': 0.0, '[ 1.  1.  0.  0. -1.  1. -1.  0.  0.]': 0.0, '[ 1.  1.  0. -1. -1.  1.  1.  0. -1.]': 0.13134311390821424, '[ 1.  1.  0. -1. -1.  1.  0.  0.  0.]': 0.030104525227658677, '[-1.  1.  1.  1. -1.  0.  1. -1.  0.]': 0.025297527656476047, '[ 0.  1. -1.  0.  0.  0.  1.  1. -1.]': 0.0, '[ 0.  1.  0.  1.  0. -1.  1.  0. -1.]': 0.0, '[ 1. -1.  0.  0. -1.  0.  1.  0.  1.]': 0.0, '[ 0.  1.  1.  0.  1. -1.  0. -1.  0.]': 0.15630013172160923, '[ 1.  1. -1. -1. -1.  1.  1.  0.  0.]': 0.05444963853952771, '[ 0.  0. -1.  1. -1.  1.  0.  0.  1.]': 0.0007375165511405316, '[ 1. -1.  1.  1. -1.  0. -1.  1.  0.]': 0.04753056398461794, '[-1.  0.  0.  0.  0.  1.  1.  0.  0.]': 0.2827978802828434, '[ 1. -1.  1.  0.  0. -1.  1. -1.  1.]': 0.0, '[ 1.  0.  1.  0.  0. -1.  1. -1.  0.]': 0.0, '[ 1.  0.  0.  0. -1.  1.  0.  1. -1.]': 0.05545683802429072, '[ 1.  1.  0.  0. -1. -1.  1.  0.  0.]': 0.26376861192192, '[ 1.  1.  0. -1.  1. -1.  0. -1.  1.]': 0.18000000000000002, '[ 0.  1.  1.  1. -1.  1. -1.  0. -1.]': 0.0, '[-1.  1.  1.  1.  1.  0. -1.  0. -1.]': 0.0, '[ 0. -1.  1.  1.  0.  1.  0.  0. -1.]': 0.05832000000000001, '[ 0.  0.  0. -1.  0.  0.  1.  0.  1.]': 0.10648525171537115, '[ 1.  0.  0. -1. -1.  1.  0.  0.  1.]': 0.0033239452970483772, '[-1.  0. -1.  1. -1.  1.  0.  1.  1.]': 0.0, '[-1.  1. -1.  1.  0.  1.  1.  0. -1.]': 0.150867444768768, '[-1.  1. -1.  0.  0.  1.  1.  0.  0.]': 0.027156140058378242, '[ 1.  0. -1.  1. -1.  1.  0. -1.  1.]': 0.0, '[-1.  0.  0.  0.  0.  1.  0.  0.  1.]': 0.1962144, '[ 1. -1.  0.  0.  1. -1. -1.  1.  1.]': 0.18000000000000002, '[ 1.  1. -1.  0.  1.  1.  0. -1. -1.]': 0.04149791999194336, '[ 0.  1.  1. -1. -1.  1.  1. -1.  0.]': 0.4224622582042129, '[ 0.  0.  1.  0. -1.  1.  1. -1.  0.]': 0.02882380808925665, '[-1.  1.  0.  0.  1.  0. -1.  1.  0.]': 0.6640704000000001, '[ 0.  1. -1. -1.  1.  1.  0.  1. -1.]': 0.8982591468197549, '[ 0. -1. -1.  1.  1.  1.  1.  0. -1.]': 0.71125632, '[-1.  1. -1.  0.  1.  0. -1.  1.  1.]': 0.71125632, '[-1.  1.  0.  1.  1. -1.  0. -1.  1.]': 0.05102044058873396, '[-1.  1. -1.  0.  1.  0.  0.  1.  0.]': 0.6640704000000001, '[ 0.  1.  1.  0. -1.  1.  0. -1.  0.]': 0.14983971639915689, '[-1.  0.  1.  0.  1.  0.  0. -1.  1.]': 0.22705733395317115, '[-1.  1.  1.  1.  1. -1. -1.  1. -1.]': 0.8992869465373716, '[-1.  0.  1.  0.  0.  0.  0.  1.  0.]': 0.03225967534080001, '[ 0.  1. -1.  0.  1. -1.  1. -1.  1.]': 0.0884840521457631, '[ 0.  1. -1.  0.  1. -1.  1.  0.  0.]': 0.01843736079614608, '[-1. -1.  0.  1.  1.  1.  1.  0. -1.]': 0.8683340651200512, '[ 0. -1.  0. -1. -1.  1.  1.  1.  1.]': 0.18000000000000002, '[-1.  1.  0.  1.  1.  0. -1.  1. -1.]': 0.324, '[-1.  1. -1.  0.  1.  1.  1.  0. -1.]': 0.1613879813038201, '[-1.  0.  0.  1.  0.  0.  1.  0.  0.]': 0.012130560000000002, '[ 1.  1.  0. -1.  1.  1. -1.  0. -1.]': 0.12840465098402362, '[-1.  1. -1.  1.  1.  0.  1. -1.  0.]': 0.13383398375966565, '[-1.  1. -1.  1.  0.  0.  1.  0.  0.]': 0.05261723334407669, '[-1.  0.  1. -1.  1.  1.  0.  0.  0.]': 0.10214932894816667, '[ 0. -1.  1. -1.  1.  0.  1.  0.  0.]': 0.53136, '[ 0.  1.  1.  0. -1. -1. -1.  1.  1.]': 0.0, '[ 0.  0. -1. -1.  1.  1. -1.  1.  1.]': 0.05832000000000001, '[ 0. -1.  1.  0. -1.  0.  1.  1.  0.]': 0.033969108373108625, '[-1.  0.  0.  1. -1.  0.  1.  0.  1.]': 0.33391564837335264, '[-1.  0.  0.  1.  0.  0.  0.  1.  0.]': 0.04019949189734401, '[ 0.  1.  1. -1.  1. -1.  0. -1.  1.]': 0.07905600000000002, '[-1.  0.  0.  1.  1.  0. -1.  1.  0.]': 0.4978224680288257, '[ 0.  0. -1. -1.  1. -1.  1.  1.  1.]': 0.43920000000000003, '[ 0.  0.  0. -1.  1. -1.  1.  1.  0.]': 0.032400000000000005, '[ 1.  0. -1. -1. -1.  1.  1.  0.  1.]': 0.016123497662977514, '[-1.  1.  0. -1.  0. -1.  1.  1.  1.]': 0.18000000000000002, '[ 0. -1.  1. -1. -1.  1.  0.  1.  1.]': 0.18000000000000002, '[ 1. -1. -1.  1.  1.  0.  0.  0.  0.]': 0.004299816960000001, '[-1.  0. -1.  0.  1.  1. -1.  1.  1.]': 0.0, '[-1.  0.  0.  0.  1.  1. -1.  1.  0.]': 0.0, '[ 1. -1. -1.  0.  1.  1.  0. -1.  1.]': 0.18000000000000002, '[ 1.  1.  1.  1. -1. -1. -1.  0.  0.]': 0.324, '[-1.  0.  0.  1.  1.  1.  0.  0. -1.]': 0.8999871547707657, '[ 0.  0.  0. -1.  0.  1.  0.  0.  1.]': 0.5763396980882952, '[ 0.  0.  0.  0.  0.  1. -1.  1.  0.]': 0.04226714323207287, '[ 0. -1.  1.  1.  1. -1.  1.  0. -1.]': 0.8683340651200512, '[ 1. -1.  1.  1. -1. -1.  0.  1.  0.]': 0.028865331525699124, '[-1. -1.  0.  1.  1.  0.  1.  1. -1.]': 0.2587210418016092, '[-1.  1.  0.  0.  1.  1.  0.  0. -1.]': 0.2195060885962562, '[ 0.  1. -1.  1.  1. -1.  0. -1.  1.]': 0.18543168000000004, '[ 0. -1.  0.  1.  1.  1.  0. -1.  0.]': 0.6050880000000001, '[ 1. -1. -1.  1.  0.  1.  1.  0. -1.]': 0.324, '[-1.  1. -1.  0.  1.  1.  0. -1.  1.]': 0.11029266923894993, '[ 0.  1. -1. -1.  1.  1.  0.  0.  0.]': 0.23271994733720403, '[-1.  0.  0.  0.  1.  1.  0. -1.  1.]': 0.17581053275435088, '[ 0.  0. -1.  0.  0.  1.  0.  1.  0.]': 0.14583111957324063, '[ 0.  1. -1.  1.  1.  1. -1.  0. -1.]': 0.43920000000000003, '[-1. -1.  0.  1.  1.  1.  0.  1. -1.]': 0.8957498701654173, '[ 0.  0.  0. -1.  1. -1.  1.  0.  1.]': 0.1590816674414639, '[-1. -1.  1.  1.  0.  0.  1. -1.  1.]': 0.0, '[ 0.  0. -1. -1.  1.  1.  0.  1.  0.]': 0.5131275498216936, '[-1.  1.  0. -1. -1.  0.  1.  1.  1.]': 0.18000000000000002, '[ 0.  1.  0. -1. -1.  0.  1.  1.  0.]': 0.032400000000000005, '[-1. -1.  1.  0.  1.  0. -1.  1.  1.]': 0.036856186744504325, '[-1. -1.  1.  1. -1. -1.  1.  1.  1.]': 0.43920000000000003, '[-1. -1.  1.  1. -1.  0.  0.  1.  1.]': 0.05832000000000001, '[-1.  0.  0.  0.  1.  1. -1.  0.  1.]': 0.0, '[-1. -1.  1.  0.  1.  1.  0.  1. -1.]': 0.20666534400000003, '[-1.  0.  1.  1.  1.  0. -1.  1. -1.]': 0.43934608729630614, '[ 0. -1.  1.  0.  1.  1. -1. -1.  1.]': 0.18000000000000002, '[ 0. -1.  1.  0.  1.  1. -1.  0.  0.]': 0.048495062958452566, '[ 1.  1.  1.  0. -1.  1. -1.  0. -1.]': 0.7792040448, '[-1. -1.  1.  0.  1.  1.  0.  0.  0.]': 0.07905600000000002, '[ 0.  0.  0. -1. -1.  0.  1.  1.  1.]': 0.53136, '[ 0.  0.  0. -1.  0.  0.  1.  1.  0.]': 0.032400000000000005, '[-1.  1.  0.  0.  1.  1. -1.  0.  0.]': 0.06970613760000001, '[ 1. -1. -1.  0.  1.  1.  1.  0. -1.]': 0.05832000000000001, '[-1. -1.  1.  0.  1.  1.  1.  0. -1.]': 0.324, '[-1.  0. -1.  1.  1.  0.  1. -1.  1.]': 0.08014688346260261, '[-1.  0.  1.  1.  1.  0. -1.  0.  0.]': 0.11402787560607111, '[ 0.  0.  1.  0.  0.  0. -1.  1.  0.]': 0.020876412548669895, '[ 1.  0. -1.  0. -1.  1.  1.  1. -1.]': 0.21167002831595194, '[ 0.  0.  1.  0.  1. -1.  0. -1.  1.]': 0.3391914462821249, '[ 1. -1.  1. -1.  1.  1. -1. -1.  1.]': 0.18000000000000002, '[ 1. -1.  1. -1.  1.  1. -1.  0.  0.]': 0.032400000000000005, '[ 1.  1. -1. -1.  0.  0.  0.  1.  0.]': 0.0038102633720255665, '[-1. -1.  0.  1.  1.  1. -1.  0.  1.]': 0.43920000000000003, '[ 0. -1.  0. -1.  1.  1. -1.  1.  1.]': 0.2933584128, '[ 0. -1.  0. -1.  1.  0.  0.  1.  1.]': 0.04552485120000001, '[ 1. -1.  0.  0. -1.  0.  0.  1.  1.]': 0.1386042100883363, '[ 1. -1.  1.  0. -1.  0.  1.  0.  0.]': 0.0005271979412871807, '[-1.  0.  0.  1.  1.  1. -1.  0.  0.]': 0.8972799169058671, '[ 1. -1. -1. -1.  1.  0.  1.  1.  0.]': 0.02916, '[ 1. -1. -1.  0.  0.  0.  1.  1.  0.]': 0.002916, '[ 1.  1.  1. -1.  0. -1.  1.  0. -1.]': 0.18000000000000002, '[ 0.  1.  1. -1. -1.  0.  1.  0.  0.]': 0.0, '[ 0. -1.  0.  1.  1.  1. -1. -1.  1.]': 0.324, '[ 1.  0. -1.  1.  1. -1.  0.  0.  0.]': 0.3411012645515732, '[-1. -1.  1.  1. -1.  1. -1.  1.  1.]': 0.43920000000000003, '[ 1.  0. -1.  0. -1.  0.  0.  1.  1.]': 0.0, '[ 0.  0. -1.  0.  0.  0.  0.  1.  1.]': 0.0031526548427243534, '[ 0.  0. -1.  1.  1. -1.  0.  1.  0.]': 0.01456300853591173, '[ 1. -1.  1. -1. -1.  1.  0.  1.  0.]': 0.029159995833464916, '[ 0.  1.  0.  1. -1.  1.  1. -1. -1.]': 0.16123497662977512, '[ 1.  0. -1.  0.  0.  0. -1.  1.  1.]': 0.0, '[ 1.  1. -1. -1.  1.  0.  0. -1.  1.]': 0.324, '[-1.  0.  1.  1.  0. -1. -1.  1.  1.]': 0.010891584000000003, '[-1.  0.  0.  1.  0. -1.  0.  1.  1.]': 0.0019604851200000005, '[ 0.  1.  1. -1.  1. -1.  0.  1. -1.]': 0.18000000000000002, '[ 0.  1.  0. -1.  1.  0.  1.  0. -1.]': 0.3008979835314098, '[-1. -1.  1.  1.  1.  0.  0.  1. -1.]': 0.13482091008000002, '[-1.  1.  1. -1.  1.  1.  0.  0. -1.]': 0.0, '[ 1.  1.  0. -1. -1.  0.  0.  1.  0.]': 0.0, '[ 0. -1.  1.  1. -1. -1.  0.  1.  1.]': 0.016123497662977514, '[ 0.  0.  1.  1. -1. -1.  0.  0.  1.]': 0.0545385391584769, '[-1.  0. -1.  1.  1.  1.  0.  0.  0.]': 0.887029633073173, '[-1.  0.  1.  0.  1.  0. -1.  0.  1.]': 0.0124331080582807, '[ 1.  1. -1.  1. -1.  0.  0. -1.  1.]': 0.0, '[-1.  1. -1.  0.  1.  1.  1. -1.  0.]': 0.02903936258353354, '[-1.  0.  1.  1.  1. -1.  1.  0. -1.]': 0.71125632, '[-1. -1.  0.  1. -1.  0.  1.  1.  1.]': 0.43920000000000003, '[ 1. -1. -1. -1.  1.  1.  1.  0.  0.]': 0.0162, '[ 1.  0. -1. -1.  1.  0.  1. -1.  1.]': 0.8226905886720001, '[ 1.  0. -1. -1. -1.  0.  1.  1.  1.]': 0.324, '[-1.  1. -1.  0.  1.  0.  1.  0.  0.]': 0.09851734496079195, '[ 1. -1.  0.  1.  1.  0. -1.  0.  0.]': 0.5894866966514878, '[ 0.  1. -1.  1.  1.  1. -1. -1.  0.]': 0.18000000000000002, '[ 1. -1.  1.  1. -1. -1.  0.  0.  1.]': 0.0, '[ 0.  1.  1.  0.  1. -1. -1.  1. -1.]': 0.8797338016768327, '[ 1.  0.  0.  0. -1.  1.  1.  0. -1.]': 0.025907202459751068, '[-1.  0.  1. -1. -1.  1.  1.  0.  1.]': 0.18000000000000002, '[ 1.  1. -1.  1. -1. -1.  0.  1.  0.]': 0.0, '[ 1.  1.  0.  1. -1. -1.  0.  0.  0.]': 0.0, '[ 1.  0. -1.  0. -1. -1.  1.  1.  1.]': 0.324, '[-1.  0.  0.  0.  1. -1.  1.  0.  1.]': 0.3312389949902277, '[-1. -1.  0.  0.  1.  1.  1.  0.  0.]': 0.17310006462387184, '[ 0.  0.  1. -1. -1.  1.  1.  0.  0.]': 0.032137627722146574, '[ 0.  0.  1. -1.  0.  1.  0.  0.  0.]': 0.07214748852508124, '[ 0.  0. -1. -1.  1.  1.  0.  0.  1.]': 0.09789353165094913, '[ 1. -1. -1.  0.  1.  1. -1.  1.  0.]': 0.3927855600176487, '[ 0. -1.  1.  1.  1.  0. -1.  0.  0.]': 0.016797470245621064, '[ 1.  0. -1. -1.  1.  0.  0.  1.  0.]': 0.1446053824512, '[-1.  0.  1. -1.  1. -1.  0.  1.  1.]': 0.0, '[-1.  0. -1.  1.  1.  1. -1.  0.  1.]': 0.749005056, '[-1. -1.  0.  1.  1.  0.  0.  1.  0.]': 0.04708735923612375, '[-1.  1.  0.  1. -1. -1.  1.  0.  1.]': 0.039527995287270364, '[ 1.  1.  0.  1. -1.  0. -1. -1.  1.]': 0.0, '[ 0.  1.  0.  1. -1.  0.  0. -1.  1.]': 0.10831803521358302, '[ 0.  1. -1.  1. -1.  1.  1.  0. -1.]': 0.1613879813038201, '[-1.  1.  1.  1.  1.  0.  0. -1. -1.]': 0.0, '[ 0. -1. -1.  0.  1. -1.  1.  1.  1.]': 0.324, '[ 0.  1.  0. -1.  1. -1.  0.  1.  0.]': 0.80336323584, '[-1.  0.  1.  1. -1.  1.  0.  0.  0.]': 0.0, '[ 1.  0. -1. -1.  1.  1.  0. -1.  1.]': 0.43920000000000003, '[ 0.  0. -1.  0.  1.  1. -1.  0.  1.]': 0.15112977408, '[-1.  1. -1.  0.  1. -1.  0.  1.  1.]': 0.18000000000000002, '[-1.  1. -1.  0.  1.  0.  0.  0.  1.]': 0.15394613760000003, '[ 0.  1. -1.  1. -1. -1.  1.  1.  0.]': 0.0, '[ 0.  1. -1.  0. -1.  0.  1.  1.  0.]': 0.08424000000000001, '[ 1. -1.  0.  0.  1. -1.  1.  0.  0.]': 0.1618716503767269, '[ 1. -1.  0.  0. -1.  1.  0.  1.  0.]': 0.014524178661085508, '[ 0.  0. -1.  1.  1. -1.  0.  0.  1.]': 0.014279349105405476, '[-1.  0.  1.  1. -1.  1.  0. -1.  1.]': 0.43920000000000003, '[ 1. -1.  0.  1. -1.  1.  0.  0.  0.]': 0.007445720042532518, '[ 1. -1.  0.  1. -1.  0.  0.  1.  0.]': 0.11644503383412197, '[ 0. -1.  0. -1.  0.  0.  1.  1.  1.]': 0.18000000000000002, '[-1. -1.  1. -1.  1.  1.  1. -1.  1.]': 0.324, '[-1. -1.  0. -1.  1.  1.  1.  0.  1.]': 0.08424000000000001, '[-1.  1. -1.  1.  1.  0. -1.  0.  1.]': 0.41108846593500104, '[-1.  0.  0.  1. -1.  0.  0.  1.  1.]': 0.07374240000000001, '[ 1.  0. -1.  0.  1.  0. -1.  0.  1.]': 0.8957498701654173, '[ 0.  0.  1.  0.  0.  1. -1.  0.  0.]': 0.007081906422582433, '[ 1.  1.  0.  1. -1. -1.  0.  1. -1.]': 0.0, '[ 1.  0.  0.  1. -1. -1.  0.  1.  0.]': 0.0, '[ 1. -1.  0.  0.  0.  1.  1. -1.  0.]': 0.09763808574457607, '[ 0.  1.  0. -1.  0.  1.  0.  1. -1.]': 0.041110210662795146, '[ 1. -1.  0.  1. -1.  0.  0.  0.  1.]': 0.0, '[-1.  0.  0.  0.  0.  1.  0.  1.  0.]': 0.04211702065152001, '[ 1.  1.  0.  0. -1.  0. -1.  1.  0.]': 0.004882773224575322, '[ 1. -1. -1.  1.  0.  0.  1.  1. -1.]': 0.18000000000000002, '[ 0.  1. -1.  1. -1.  0.  0.  1.  0.]': 0.0, '[ 0.  1. -1. -1.  0.  1.  1.  1. -1.]': 0.1343985696467338, '[ 1.  0. -1.  0.  1.  1. -1.  0.  0.]': 0.3819446697927697, '[-1.  0.  1.  1.  0. -1.  0.  0.  1.]': 0.014314743764319932, '[-1.  0. -1.  0. -1.  1.  1.  1.  1.]': 0.324, '[ 0.  1.  0.  0.  0.  1.  0. -1.  0.]': 0.025619992162156397, '[ 0.  0.  0. -1.  1. -1.  0.  1.  1.]': 0.40429687541760007, '[ 0.  0. -1.  0.  1. -1.  1.  1.  0.]': 0.0, '[ 0.  1. -1.  1. -1.  0.  0.  0.  1.]': 0.03435543950619211, '[ 0. -1.  1.  0.  0.  1.  0.  0.  0.]': 0.0, '[ 0.  0.  0.  1. -1. -1.  1.  0.  1.]': 0.46771611816012193, '[ 1.  0. -1.  1.  0.  0. -1.  0.  1.]': 0.18128708046028802, '[-1.  0.  1.  1.  0.  0.  1.  0. -1.]': 0.10891584000000001, '[-1.  0.  0.  1.  0. -1.  1.  0.  1.]': 0.029440598244786526, '[-1.  1.  0.  1. -1.  1.  0. -1.  1.]': 0.09564480000000002, '[ 0. -1.  0.  0.  1.  1.  1.  0. -1.]': 0.22960979581501445, '[ 1.  0. -1.  1.  0. -1.  1.  0.  0.]': 0.6640704000000001, '[ 0.  0.  1.  1.  0. -1.  0.  1. -1.]': 0.08992605681792398, '[ 0. -1. -1.  1.  1.  0.  0.  1.  0.]': 0.08622830816375046, '[ 0.  1.  0.  1. -1.  1. -1.  0.  0.]': 0.0, '[ 0.  0. -1.  0.  1. -1.  1.  0.  1.]': 0.19752344476876801, '[ 1. -1. -1. -1. -1.  1.  1.  1.  1.]': 0.18000000000000002, '[ 1. -1. -1.  0. -1.  1.  1.  0.  1.]': 0.013271040000000003, '[-1.  1.  0.  1.  0.  0.  1.  0. -1.]': 0.09252270754295507, '[ 1.  0.  0.  1. -1.  0. -1.  1.  0.]': 0.0, '[-1.  0. -1.  0.  0.  0.  1.  1.  1.]': 0.8797338016768327, '[-1.  0.  1.  0. -1.  1.  0.  1.  0.]': 0.0, '[ 1. -1.  0. -1. -1.  1.  1.  1.  0.]': 0.016199999771016625, '[ 1.  0.  0. -1. -1.  0.  1.  0.  1.]': 0.0, '[ 1. -1.  0.  0. -1. -1.  1.  1.  1.]': 0.324, '[ 0.  1. -1. -1.  1. -1.  1.  1.  0.]': 0.18000000000000002, '[ 0. -1.  0.  1.  1. -1. -1.  1.  1.]': 0.06962824683422963, '[ 0. -1.  1.  0.  0.  0.  1.  1. -1.]': 0.28891046471405313, '[ 0. -1.  0. -1.  1. -1.  1.  1.  1.]': 0.324, '[-1.  1.  0.  1.  1. -1.  0.  1. -1.]': 0.18000000000000002, '[ 0. -1. -1.  0.  1.  1.  1.  0.  0.]': 0.009107251200000005, '[ 1.  1.  0. -1.  1. -1.  0.  0.  0.]': 0.16013226716253692, '[-1.  0.  1.  1.  1.  0.  0. -1.  0.]': 0.11953267200000002, '[ 0. -1.  1.  1.  1. -1. -1.  1.  0.]': 0.02912866464275559, '[-1.  0.  0.  0. -1.  0.  1.  1.  1.]': 0.18000000000000002, '[-1.  1.  0.  1.  1. -1.  0.  0.  0.]': 0.26405372455056936, '[ 1.  0. -1.  1. -1. -1.  0.  1.  1.]': 0.0, '[ 1.  1.  1. -1.  1. -1.  0. -1.  0.]': 0.18000000000000002, '[ 1.  1.  1.  0. -1. -1. -1.  1.  0.]': 0.18000000000000002, '[ 1.  1.  0.  0.  0.  1. -1.  0. -1.]': 0.07651584000000002, '[ 1. -1.  0.  1. -1.  0.  1.  1. -1.]': 0.324, '[-1.  0. -1.  1.  0.  1.  1.  1. -1.]': 0.0, '[-1.  0. -1.  1.  0.  0.  1.  1.  0.]': 0.0, '[ 1.  0.  1.  0.  1. -1. -1.  0.  0.]': 0.29159998768711193, '[ 1.  1. -1.  0. -1. -1.  0.  1.  1.]': 0.0, '[ 0. -1.  1.  1.  1.  0.  1. -1. -1.]': 0.18000000000000002, '[ 0.  1.  1. -1.  0.  0.  1.  0. -1.]': 0.1280261376, '[ 0.  1. -1.  0.  0.  1.  0.  1. -1.]': 0.004744805917326158, '[ 0. -1. -1.  0.  1.  0.  1.  0.  1.]': 0.029759809536000006, '[ 0. -1. -1.  0.  1.  1. -1.  1.  1.]': 0.0, '[ 0. -1.  0.  0.  1.  1.  0. -1.  1.]': 0.024501864960000008, '[-1.  1.  0.  1.  1. -1. -1.  0.  1.]': 0.15487516465201154, '[ 1.  0. -1.  1.  1. -1.  0. -1.  1.]': 0.18000000000000002, '[ 0.  0. -1.  1. -1.  0.  1.  1.  0.]': 0.3387474929664, '[ 1.  0.  0.  0.  1. -1.  1. -1.  0.]': 0.2731244113382474, '[ 1. -1. -1.  0.  1.  0. -1.  1.  1.]': 0.53136, '[ 1.  1.  1. -1. -1.  0.  1. -1.  0.]': 0.18000000000000002, '[-1.  0.  1.  0.  0.  1. -1.  1.  0.]': 0.1122053824512, '[-1.  1.  1.  0.  0.  0.  0.  0.  0.]': 0.027687915843537993, '[ 0.  1. -1.  0. -1.  1.  1.  0.  0.]': 0.049824724596858536, '[-1. -1.  1. -1.  1. -1.  1.  1.  1.]': 0.324, '[-1. -1.  1. -1.  1.  0.  0.  1.  1.]': 0.08424000000000001, '[ 1. -1.  0. -1.  1.  0.  1.  1. -1.]': 0.0162, '[ 0.  1.  1. -1.  1. -1.  0.  0.  0.]': 0.09564480000000002, '[ 1. -1.  1.  0.  0.  1. -1.  1. -1.]': 0.016199999999307945, '[ 1. -1.  1.  0.  0.  1. -1.  0.  0.]': 0.00291599999987543, '[ 0. -1.  0.  1.  1.  0. -1.  1.  0.]': 0.16189732030138151, '[ 1. -1.  0.  0.  0.  0.  1.  0.  0.]': 0.00011861953678961567, '[-1.  1. -1.  0.  0.  0.  1.  0.  1.]': 0.023691385662145237, '[ 0.  0.  1.  0.  0. -1.  1. -1.  1.]': 0.003012553533336996, '[-1. -1.  1.  0.  1.  0.  0.  0.  1.]': 0.015163200000000002, '[ 1. -1.  0.  1. -1.  0.  1.  0.  0.]': 0.8746672520960409, '[-1.  1. -1.  0.  1. -1.  1.  0.  1.]': 0.016174931714204473, '[-1. -1.  0.  1.  1.  1.  1. -1.  0.]': 0.43920000000000003, '[ 1. -1. -1. -1.  1.  0.  0.  1.  1.]': 0.18000000000000002, '[ 0. -1.  1.  1.  1.  0.  0. -1.  0.]': 0.09564480000000002, '[ 0.  1.  1.  1. -1.  0. -1.  0.  0.]': 0.16191785624110522, '[ 1. -1.  1.  0.  1.  0. -1. -1.  1.]': 0.324, '[ 0. -1.  0.  1. -1.  0.  1.  1.  0.]': 0.026888349741699402, '[ 0. -1.  0.  1.  0.  1. -1.  0.  1.]': 0.005832000000000001, '[ 0. -1.  1.  0. -1.  1.  0.  1.  0.]': 0.014568293353061843, '[ 0.  1.  0.  1. -1. -1.  1.  0.  0.]': 0.0071150391517086665, '[ 1.  0. -1.  0.  1.  0.  1. -1.  0.]': 0.2907186930775009, '[-1.  0.  0.  1. -1. -1.  1.  1.  1.]': 0.6050880000000001, '[-1.  0.  1.  0.  1.  0.  0.  1. -1.]': 0.1610437207872189, '[ 0.  0.  1.  1. -1.  0. -1.  1.  0.]': 0.054515165880581515, '[-1. -1.  0.  1.  0.  1.  1. -1.  1.]': 0.0, '[-1. -1.  0.  1.  1.  1. -1.  1.  0.]': 0.6640704000000001, '[ 0. -1.  1.  0.  1.  0.  0. -1.  1.]': 0.05832000000000001, '[ 1.  0.  0.  1. -1. -1.  1.  0.  0.]': 0.324, '[ 0.  0. -1.  1.  0.  1. -1.  1.  0.]': 0.5508551238414849, '[ 0. -1.  1.  1. -1. -1.  1.  0.  1.]': 0.04665600000000001, '[ 1.  0.  0.  0. -1.  1.  0. -1.  1.]': 0.11953267200000002, '[-1.  0.  0.  1.  1.  1.  0. -1.  0.]': 0.749005056, '[ 0. -1.  1.  0.  1.  0.  1. -1.  0.]': 0.18000000000000002, '[ 1. -1.  1.  0. -1. -1.  1.  0.  1.]': 0.0, '[ 0.  1.  0.  0.  0.  1. -1.  0.  0.]': 0.015683880960000004, '[ 1.  0. -1.  1.  0.  1. -1. -1.  1.]': 0.0, '[ 0. -1.  1.  1.  0. -1.  1.  0.  0.]': 0.008398080000000002, '[-1.  0.  1.  1.  0. -1.  1.  0.  0.]': 0.259915392, '[ 1.  1. -1.  1. -1. -1.  0.  0.  1.]': 0.0, '[ 0.  0.  0.  0.  0. -1.  1.  0.  1.]': 0.05987892382275615, '[-1.  1.  1.  1.  0. -1.  1.  0. -1.]': 0.0, '[ 0. -1.  0.  1. -1.  1.  0.  1.  0.]': 0.034417087669375235, '[ 1.  1. -1.  0. -1.  0.  1.  0.  0.]': 0.18386960189649132, '[ 0.  1.  1. -1. -1.  1. -1.  1.  0.]': 0.16198621856413972, '[ 0.  1.  0. -1. -1.  1.  1.  1. -1.]': 0.016199999552766835, '[ 0.  1.  0. -1. -1.  1.  1.  0.  0.]': 0.0, '[ 0. -1. -1.  1.  1. -1.  0.  1.  1.]': 0.140256728064, '[ 1.  0.  1. -1.  1. -1. -1.  1.  0.]': 0.1617493171420447, '[ 1.  0.  0. -1.  1.  0. -1.  1.  0.]': 0.02911487708556805, '[ 0.  0. -1.  0. -1.  1.  1.  1.  0.]': 0.05832000000000001, '[ 0.  0. -1.  0.  0.  1. -1.  1.  1.]': 0.0, '[ 0. -1.  1.  0. -1.  1.  1.  1. -1.]': 0.0, '[ 0.  0. -1.  1.  1.  1.  0. -1.  0.]': 0.8797338016768327, '[-1.  0.  1.  1. -1. -1.  1.  0.  1.]': 0.08800710911597459, '[-1.  0.  1.  0.  0.  0.  1.  0.  0.]': 0.01810513201213875, '[ 1. -1.  1. -1.  1.  1.  0. -1.  0.]': 0.16198621856413972, '[ 1.  0.  0. -1.  1.  1.  0. -1.  0.]': 0.029157519341545153, '[ 0. -1. -1.  1.  1.  1. -1.  1.  0.]': 0.18000000000000002, '[ 1. -1. -1.  1.  1.  1. -1.  0.  0.]': 0.18000000000000002, '[ 1. -1.  0.  0.  1.  1. -1.  0.  0.]': 0.032400000000000005, '[ 0. -1.  0. -1.  1.  1.  1.  0.  0.]': 0.15744010537728736, '[ 1.  1. -1.  1.  1.  0.  0. -1. -1.]': 0.0, '[ 0.  0.  0. -1.  0.  1.  0.  1.  0.]': 0.04871850363263309, '[ 0. -1.  0.  1.  0.  0.  1.  1. -1.]': 0.057169747385883415, '[-1.  1.  1. -1.  0.  0.  0.  0.  1.]': 0.140256728064, '[ 0.  1. -1.  0. -1.  0.  0.  1.  1.]': 0.0, '[-1.  0.  0.  1.  1. -1.  1.  0.  0.]': 0.007335969305527754, '[ 0. -1.  1. -1.  1.  0.  0.  0.  1.]': 0.1446053824512, '[ 1.  1.  1.  0. -1. -1. -1.  0.  1.]': 0.18000000000000002, '[ 1.  0. -1.  1.  1.  1. -1. -1.  0.]': 0.18000000000000002, '[ 1. -1.  0.  0. -1.  1.  1.  0.  0.]': 0.0, '[-1. -1.  0.  1.  0.  0.  1.  0.  1.]': 0.020491315200000006, '[-1. -1.  0.  1. -1.  1.  0.  1.  1.]': 0.07905600000000002, '[-1.  1.  1.  0.  0. -1.  1.  0.  0.]': 0.02045907050369189, '[ 0. -1.  1.  1.  0.  0.  1.  0. -1.]': 0.15090624000000002, '[-1.  1.  0.  0.  1.  1.  0. -1.  0.]': 0.021171160661070592, '[ 1.  1.  0.  0. -1. -1. -1.  1.  1.]': 0.0, '[ 0.  0.  1.  0. -1. -1.  1.  1.  0.]': 0.1203961835745832, '[ 1. -1. -1.  1.  1.  1. -1. -1.  1.]': 0.18000000000000002, '[ 1. -1. -1.  1.  0.  1. -1.  0.  1.]': 0.032400000000000005, '[-1. -1.  0.  1.  1. -1.  0.  1.  1.]': 0.03938111551291683, '[ 1.  0. -1.  1.  1.  0.  0. -1.  0.]': 0.1615103850430561, '[-1.  0.  1.  0.  1.  1.  0. -1.  0.]': 0.13296960000000002, '[ 0. -1. -1.  0.  1.  1.  0.  1.  0.]': 0.07070140080317676, '[ 0.  0.  1. -1.  1. -1.  1.  0.  0.]': 0.43920000000000003, '[ 0.  1.  1. -1.  0.  0.  0. -1.  1.]': 0.16198621856413972, '[ 0.  1. -1.  0.  1. -1.  0.  1.  0.]': 0.324, '[ 1.  0. -1.  0.  1.  1.  0. -1.  0.]': 0.03289954773899803, '[ 0.  1. -1.  0.  1. -1.  0.  0.  1.]': 0.04262929130623737, '[ 0.  1. -1.  1.  1. -1.  0.  0.  0.]': 0.0, '[-1.  1.  0. -1.  0.  0.  1.  0.  1.]': 0.02869012670783286, '[-1.  1.  0.  0.  0.  0.  0.  0.  1.]': 0.0008071026466311967, '[ 0.  0. -1.  0.  0.  1.  1. -1.  1.]': 0.019601491968000005, '[ 0.  1. -1. -1.  1.  1. -1.  0.  1.]': 0.0, '[ 0. -1.  0.  0.  1.  1. -1.  0.  1.]': 0.05832000000000001, '[-1. -1.  1.  0.  1.  1.  0. -1.  1.]': 0.18000000000000002, '[-1.  0.  1.  1. -1. -1.  0.  1.  1.]': 0.014808430596096003, '[ 0.  0.  0. -1.  1.  1. -1.  1.  0.]': 0.13731454331743104, '[ 0. -1.  0.  1.  0.  1.  1.  0. -1.]': 0.05832000000000001, '[ 0.  1.  1.  1. -1. -1. -1.  0.  1.]': 0.015086744476876801, '[-1. -1.  1.  1.  1.  1.  1. -1. -1.]': 0.18000000000000002, '[ 0. -1.  1.  1.  0.  1.  1. -1. -1.]': 0.032400000000000005, '[ 0.  1. -1.  1. -1.  1.  0. -1.  1.]': 0.0, '[-1. -1.  1.  0.  1.  0.  1.  0.  0.]': 0.53136, '[-1.  1.  0.  0. -1.  1.  1.  0.  0.]': 0.0, '[ 1. -1.  0. -1.  1.  1. -1.  1.  0.]': 0.039527999999999994, '[ 0.  0.  1.  1.  1. -1. -1.  0.  0.]': 0.021485824150385916, '[-1.  1. -1.  0.  1.  0.  1. -1.  1.]': 0.016199905294693905, '[ 0.  1. -1.  0.  0.  0.  1. -1.  1.]': 0.07419980778056288, '[ 1. -1. -1.  0.  0.  1.  1.  0.  0.]': 0.002985984000000001, '[ 0.  1. -1.  0. -1. -1.  1.  1.  1.]': 0.324, '[ 1.  1. -1. -1.  0.  0.  1.  0.  0.]': 0.02370721834273214, '[-1.  1. -1. -1. -1.  1.  1.  1.  1.]': 0.18000000000000002, '[ 1. -1.  1.  0. -1.  1. -1.  1.  0.]': 0.029159999999937607, '[ 1.  0. -1.  0. -1.  0.  1.  0.  1.]': 0.15744010537728736, '[ 1.  0. -1.  0.  1.  1. -1.  1. -1.]': 0.1617493171420447, '[ 0.  0.  1.  1. -1.  0.  1. -1.  0.]': 0.16050581373002953, '[ 0.  1.  0.  1.  1. -1. -1. -1.  1.]': 0.01583520843018299, '[ 0.  1. -1. -1.  0.  0.  1.  0.  1.]': 0.014443512529164102, '[ 0.  1.  0.  0.  0.  0. -1.  0.  1.]': 0.03927803121321589, '[-1.  0. -1. -1.  1.  1.  0.  1.  1.]': 0.0, '[ 0. -1.  1.  1. -1.  1.  1.  0. -1.]': 0.0, '[ 0. -1.  1.  1. -1.  1.  0.  0.  0.]': 0.0, '[ 0. -1.  1.  0.  1. -1.  1.  0.  0.]': 0.18000000000000002, '[ 0. -1.  1.  1.  1. -1.  0. -1.  1.]': 0.15630013172160923, '[ 0. -1.  1.  1.  0.  0.  0. -1.  1.]': 0.028134023709889662, '[-1.  1. -1.  1.  0.  0. -1.  1.  1.]': 0.15966533395317115, '[ 0.  1. -1.  1.  0.  0. -1.  1.  0.]': 0.028739760111570808, '[ 0. -1.  0. -1.  1.  0.  1.  0.  1.]': 0.05832000000000001, '[ 1.  1. -1. -1.  1.  1. -1.  0.  0.]': 0.1617994537136358, '[ 0.  0. -1.  0.  1.  1.  1. -1.  0.]': 0.02508990971904001, '[ 1. -1.  0.  1.  0.  0.  1. -1.  0.]': 0.43920000000000003, '[-1.  0. -1.  1.  1.  0.  0.  0.  1.]': 0.23724182016, '[-1.  1.  1.  0.  1. -1.  0.  1. -1.]': 0.18000000000000002, '[-1.  1.  1.  0.  1. -1.  0.  0.  0.]': 0.16512971817057434, '[-1.  1.  0. -1.  1.  1.  0.  0.  0.]': 0.0, '[-1.  0.  0. -1.  1.  1.  0.  0.  1.]': 0.0, '[-1.  1.  1.  0.  1.  1.  0. -1. -1.]': 0.0, '[ 1. -1.  0.  1.  0.  1.  0. -1.  0.]': 0.0, '[-1.  1.  0.  1.  0.  0.  0.  0.  0.]': 0.04752967041910249, '[ 0. -1.  1. -1.  1.  1. -1.  1.  0.]': 0.0162, '[ 0. -1.  1.  1.  0.  0.  0.  1. -1.]': 0.04050128548434311, '[ 1. -1. -1.  1.  0.  1.  0.  1. -1.]': 0.1617994537136358, '[ 0.  1.  1. -1.  1.  0. -1. -1.  1.]': 0.0, '[ 1. -1.  1.  1.  0.  0. -1.  0.  0.]': 0.00855550151723123, '[-1. -1.  0.  0.  1.  0.  1.  1.  0.]': 0.14808430596096, '[ 0.  0.  0. -1.  1.  0. -1.  1.  1.]': 0.1446053824512, '[ 1. -1.  1. -1.  1.  0. -1.  1.  0.]': 0.0162, '[-1.  1.  1.  0.  0.  0. -1.  0.  1.]': 0.0, '[ 0.  1. -1.  1.  0.  0.  0.  1. -1.]': 0.0}\n"
+          ]
+        }
+      ],
+      "source": [
+        "p1.savePolicy()"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "YDO-6HQextIj"
+      },
+      "source": [
+        "<a id='Playing_with_Human'></a>\n",
+        "## 3.2 Agent Playing with Human"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 16,
+      "metadata": {
+        "id": "v55znnFqxtIj"
+      },
+      "outputs": [],
+      "source": [
+        "class HumanPlayer:\n",
+        "    def __init__(self, name):\n",
+        "        self.name = name\n",
+        "\n",
+        "    def chooseAction(self, positions):\n",
+        "        while True:\n",
+        "            row = int(input(\"Input your action row:\"))\n",
+        "            col = int(input(\"Input your action col:\"))\n",
+        "            action = (row, col)\n",
+        "            if action in positions:\n",
+        "                return action\n",
+        "\n",
+        "    # append a hash state\n",
+        "    def addState(self, state):\n",
+        "        pass\n",
+        "\n",
+        "    # at the end of game, backpropagate and update states value\n",
+        "    def feedReward(self, reward):\n",
+        "        pass\n",
+        "\n",
+        "    def reset(self):\n",
+        "        pass"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "0NQZNoAfxtIj"
+      },
+      "source": [
+        "+ ### Loading Policy for Player 1 (i.e., the Agent)"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 17,
+      "metadata": {
+        "id": "RD6r8C52xtIj"
+      },
+      "outputs": [],
+      "source": [
+        "p1 = Player(\"computer\", exp_rate=0)\n",
+        "p1.loadPolicy(\"policy_p1\")"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "QLGexG56xtIk"
+      },
+      "source": [
+        "+ ### Playing Tic-Tac-Toe with Human Player \n",
+        "\n",
+        ">    - Calling **`play2()`** function"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 22,
+      "metadata": {
+        "id": "NMAL310vxtIk",
+        "outputId": "36052603-a290-4f5f-ebe2-2864d742026f",
+        "colab": {
+          "base_uri": "https://localhost:8080/"
+        }
+      },
+      "outputs": [
+        {
+          "output_type": "stream",
+          "name": "stdout",
+          "text": [
+            "-------------\n",
+            "|   |   |   | \n",
+            "-------------\n",
+            "|   | x |   | \n",
+            "-------------\n",
+            "|   |   |   | \n",
+            "-------------\n",
+            "Input your action row:0\n",
+            "Input your action col:0\n",
+            "-------------\n",
+            "| o |   |   | \n",
+            "-------------\n",
+            "|   | x |   | \n",
+            "-------------\n",
+            "|   |   |   | \n",
+            "-------------\n",
+            "-------------\n",
+            "| o |   |   | \n",
+            "-------------\n",
+            "| x | x |   | \n",
+            "-------------\n",
+            "|   |   |   | \n",
+            "-------------\n",
+            "Input your action row:1\n",
+            "Input your action col:2\n",
+            "-------------\n",
+            "| o |   |   | \n",
+            "-------------\n",
+            "| x | x | o | \n",
+            "-------------\n",
+            "|   |   |   | \n",
+            "-------------\n",
+            "-------------\n",
+            "| o | x |   | \n",
+            "-------------\n",
+            "| x | x | o | \n",
+            "-------------\n",
+            "|   |   |   | \n",
+            "-------------\n",
+            "Input your action row:2\n",
+            "Input your action col:1\n",
+            "-------------\n",
+            "| o | x |   | \n",
+            "-------------\n",
+            "| x | x | o | \n",
+            "-------------\n",
+            "|   | o |   | \n",
+            "-------------\n",
+            "-------------\n",
+            "| o | x |   | \n",
+            "-------------\n",
+            "| x | x | o | \n",
+            "-------------\n",
+            "|   | o | x | \n",
+            "-------------\n",
+            "Input your action row:0\n",
+            "Input your action col:2\n",
+            "-------------\n",
+            "| o | x | o | \n",
+            "-------------\n",
+            "| x | x | o | \n",
+            "-------------\n",
+            "|   | o | x | \n",
+            "-------------\n",
+            "-------------\n",
+            "| o | x | o | \n",
+            "-------------\n",
+            "| x | x | o | \n",
+            "-------------\n",
+            "| x | o | x | \n",
+            "-------------\n",
+            "tie!\n"
+          ]
+        }
+      ],
+      "source": [
+        "# play with human\n",
+        "p2 = HumanPlayer(\"human\")\n",
+        "\n",
+        "st = State(p1, p2)\n",
+        "st.play2()"
+      ]
+    }
+  ],
+  "metadata": {
+    "kernelspec": {
+      "display_name": "Python 3",
+      "language": "python",
+      "name": "python3"
+    },
+    "language_info": {
+      "codemirror_mode": {
+        "name": "ipython",
+        "version": 3
+      },
+      "file_extension": ".py",
+      "mimetype": "text/x-python",
+      "name": "python",
+      "nbconvert_exporter": "python",
+      "pygments_lexer": "ipython3",
+      "version": "3.8.5"
+    },
+    "colab": {
+      "provenance": [],
+      "include_colab_link": true
+    }
+  },
+  "nbformat": 4,
+  "nbformat_minor": 0
+}
